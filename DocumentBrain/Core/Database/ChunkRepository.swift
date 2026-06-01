@@ -214,51 +214,15 @@ struct ChunkRepository {
         let meaningfulWords = Self.meaningfulWords(from: queryText)
         let normalizedMeaningful = Set(meaningfulWords.map(Self.normalize))
 
-        // Detect entity terms: words that are likely names, companies, places, etc.
-        // These deserve a big scoring boost when found in a chunk.
-        let originalWords = queryText
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count > 2 }
-        let intentVerbs: Set<String> = [
-            // === SPANISH ===
-            "hice", "hago", "hacer", "trabaje", "trabajo", "trabajar", "trabajando",
-            "tuve", "tengo", "tener", "fui", "fue", "ser", "estar", "estuve",
-            "dije", "decir", "puse", "poner", "hizo", "haciendo", "hace",
-            "cual", "como", "donde", "cuando", "cuanto", "cuantos", "cuantas", "cuanta",
-            "puedo", "puede", "podria", "quiero", "necesito",
-            "labor", "experiencia", "puesto", "cargo", "funcion",
-            "tiempo", "dia", "dias", "mes", "meses", "ano", "anos", "hoy", "ayer",
-            "semana", "semanas", "pasado", "pasada", "anterior", "ultimo", "ultima",
-            "cosa", "cosas", "parte", "partes", "tipo", "tipos", "forma", "manera",
-            "vez", "veces", "algo", "nada", "mucho", "poco", "bien", "mal",
-            "nombre", "numero", "fecha", "datos", "informacion", "documento",
-            "precio", "pago", "pague", "dinero", "valor", "total", "cuenta",
-            "gasto", "gastos", "gaste", "factura", "recibo", "coste", "costo",
-            "luz", "agua", "gas", "electricidad", "telefono", "internet", "alquiler",
-            "clima", "lluvia", "sol", "temperatura", "grados", "calor", "frio",
-            // === ENGLISH ===
-            "what", "how", "much", "many", "does", "did", "can", "could", "would", "should",
-            "need", "want", "know", "think", "tell", "show", "give", "find", "get", "make",
-            "like", "look", "help", "work", "worked", "working",
-            "today", "yesterday", "tomorrow", "last", "next", "previous", "recent",
-            "week", "weeks", "month", "months", "year", "years", "day", "days", "time", "ago",
-            "thing", "things", "something", "nothing", "good", "bad", "way", "kind", "part",
-            "name", "number", "date", "information", "info", "document", "file",
-            "price", "pay", "paid", "payment", "money", "cost", "total", "bill", "receipt",
-            "spend", "spent", "expense", "expenses", "invoice",
-            "electricity", "water", "rent", "phone",
-            "weather", "rain", "sunny", "temperature", "degrees", "hot", "cold", "forecast",
-            "necessary", "important", "possible", "really", "very", "also",
-            "still", "just", "some", "any", "every", "each", "best", "most", "more", "less",
-            "lose", "weight", "diet", "healthy", "exercise"
-        ]
+        // Detect entity terms: words that start with an uppercase letter in the original
+        // query (likely proper nouns: names, companies, places, flight numbers, etc.).
+        // Simpler and more robust than a manual intent-verb exclusion list.
         let entityTerms = Set(
-            originalWords
+            queryText
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
                 .filter { word in
-                    let normalized = Self.normalize(word)
-                    if ChunkRepository.stopwords.contains(normalized) { return false }
-                    if intentVerbs.contains(normalized) { return false }
-                    return true
+                    guard word.count > 1, let first = word.first else { return false }
+                    return first.isUppercase
                 }
                 .map(Self.normalize)
         )
@@ -279,7 +243,7 @@ struct ChunkRepository {
             }
         }
 
-        // Calculate final scores with meaningful keyword content matching
+        // Calculate final scores
         var merged: [SearchResult] = scoreMap.values.compactMap { entry in
             let semanticScore = entry.vectorScore
             let chunkTokens = Self.tokenSet(from: entry.result.chunkContent)
@@ -293,13 +257,15 @@ struct ChunkRepository {
             // Check if any proper noun from the query appears in this chunk
             let hasEntityMatch = !entityTerms.isEmpty && !entityTerms.isDisjoint(with: searchableTokens)
 
-            // Reject pure semantic matches that don't contain ANY meaningful query term
-            // UNLESS the semantic score is very high OR a proper noun matches
-            if !normalizedMeaningful.isEmpty && lexicalMatches.isEmpty && !hasEntityMatch && semanticScore < 0.72 {
+            // Reject pure semantic matches that contain no query keywords and no entity,
+            // unless semantic similarity is strong enough on its own.
+            // Threshold lowered from 0.72 → 0.50: Q&A-optimized embeddings are typically
+            // in the 0.4-0.7 range so 0.72 was discarding many valid results.
+            if !normalizedMeaningful.isEmpty && lexicalMatches.isEmpty && !hasEntityMatch && semanticScore < 0.50 {
                 return nil
             }
 
-            // Keyword bonus
+            // Keyword bonus: small boost for FTS-confirmed hits
             let keywordBonus: Float
             if entry.ftsHit && !lexicalMatches.isEmpty {
                 keywordBonus = 0.05 + lexicalCoverage * 0.10
@@ -309,13 +275,14 @@ struct ChunkRepository {
                 keywordBonus = 0.0
             }
 
-            // Entity bonus: if a specific name/entity matches, it's very likely relevant
-            let entityBonus: Float = hasEntityMatch ? 0.25 : 0.0
+            // Entity bonus: reduced 0.25 → 0.10 to avoid FTS-only results with no
+            // semantic backing scoring too high.
+            let entityBonus: Float = hasEntityMatch ? 0.10 : 0.0
 
-            // Score formula: semantic + lexical + keyword + entity
-            let finalScore = 0.45 * semanticScore + 0.30 * lexicalCoverage + keywordBonus + entityBonus
+            // Score formula: semantic is now the dominant signal (0.65 vs 0.45 before).
+            // Lexical coverage acts as a tiebreaker / precision signal.
+            let finalScore = 0.65 * semanticScore + 0.20 * lexicalCoverage + keywordBonus + entityBonus
 
-            // Filter out truly irrelevant results
             guard finalScore >= minScore else { return nil }
 
             return SearchResult(
