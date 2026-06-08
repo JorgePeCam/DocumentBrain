@@ -420,7 +420,7 @@ final class ChatViewModel: ObservableObject {
         let meaningful = ChunkRepository.meaningfulWords(from: query)
         let fallbackWords = query.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { $0.count > 2 }
         let baseWords = meaningful.isEmpty ? fallbackWords : meaningful
-        let queryWords = Set(baseWords.map { $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current) })
+        let queryWords = Set(baseWords.map { $0.normalizedForSearch })
         let queryWordsOriginal = query.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { $0.count > 2 }
         let boilerplate = Set(["contacto", "teléfono", "llamar", "sitio web", "www.", "http", "política", "condiciones", "registro", "raee"])
 
@@ -483,7 +483,7 @@ final class ChatViewModel: ObservableObject {
     private func normalizedTokenSet(_ text: String) -> Set<String> {
         Set(
             text
-                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                .normalizedForSearch
                 .components(separatedBy: CharacterSet.alphanumerics.inverted)
                 .filter { !$0.isEmpty && $0.count > 1 }
         )
@@ -505,7 +505,7 @@ final class ChatViewModel: ObservableObject {
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty && $0.count > 3 }
             for line in lines {
-                let key = line.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                let key = line.normalizedForSearch
                 if seenLines.insert(key).inserted {
                     allLines.append(line)
                 }

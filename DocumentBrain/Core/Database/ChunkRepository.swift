@@ -151,7 +151,7 @@ struct ChunkRepository {
     }
 
     nonisolated private static func normalize(_ text: String) -> String {
-        text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        text.normalizedForSearch
     }
 
     nonisolated private static func tokenSet(from text: String) -> Set<String> {

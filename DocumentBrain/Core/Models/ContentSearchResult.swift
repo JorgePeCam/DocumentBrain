@@ -12,47 +12,40 @@ struct ContentSearchResult: Identifiable {
 
     var fileTypeEnum: FileType { FileType(rawValue: fileType) ?? .unknown }
 
-    /// Extracts a ~150-char excerpt centered around the first query term match.
-    func snippet(for query: String) -> String {
+    /// Extracts an excerpt of `windowSize` characters centered around the first
+    /// query-term match, with leading/trailing ellipses when the text is clipped.
+    func snippet(for query: String, windowSize: Int = 150, leftContext: Int = 40) -> String {
         let terms = query
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { $0.count > 1 }
 
-        let text = chunkContent
-        let normalized = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        let chars = Array(chunkContent)
+        let normalized = chunkContent.normalizedForSearch
 
-        // Find the earliest match position across all terms
-        var matchStart: String.Index? = nil
+        // Earliest match offset (as an integer position) across all query terms.
+        // Searching/measuring stays within `normalized` so indices are never mixed
+        // across strings; the integer is clamped before indexing into `chars`.
+        var matchOffset: Int?
         for term in terms {
-            let normalizedTerm = term.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-            if let range = normalized.range(of: normalizedTerm) {
-                if matchStart == nil || range.lowerBound < matchStart! {
-                    matchStart = range.lowerBound
-                }
-            }
+            guard let range = normalized.range(of: term.normalizedForSearch) else { continue }
+            let offset = normalized.distance(from: normalized.startIndex, to: range.lowerBound)
+            matchOffset = matchOffset.map { min($0, offset) } ?? offset
         }
 
-        let windowSize = 150
-        let start: String.Index
-        let prefix: String
-
-        if let match = matchStart {
-            // Center the window around the match
-            let offset = text.distance(from: text.startIndex, to: match)
-            let windowStart = max(0, offset - 40)
-            start = text.index(text.startIndex, offsetBy: windowStart)
-            prefix = windowStart > 0 ? "…" : ""
+        let start: Int
+        if let match = matchOffset {
+            start = max(0, min(match, chars.count) - leftContext)
         } else {
-            start = text.startIndex
-            prefix = ""
+            start = 0
         }
+        let end = min(chars.count, start + windowSize)
 
-        let end = text.index(start, offsetBy: min(windowSize, text.distance(from: start, to: text.endIndex)))
-        let excerpt = String(text[start..<end])
+        let excerpt = String(chars[start..<end])
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\n", with: " ")
-        let suffix = end < text.endIndex ? "…" : ""
 
+        let prefix = start > 0 ? "…" : ""
+        let suffix = end < chars.count ? "…" : ""
         return prefix + excerpt + suffix
     }
 

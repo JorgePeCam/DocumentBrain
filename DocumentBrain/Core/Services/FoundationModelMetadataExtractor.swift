@@ -42,14 +42,7 @@ struct FoundationModelMetadataExtractor {
     // MARK: - Prompt
 
     private func buildPrompt(text: String, title: String) -> String {
-        let truncated: String
-        if text.count <= 4000 {
-            truncated = text
-        } else {
-            let head = String(text.prefix(2500))
-            let tail = String(text.suffix(1000))
-            truncated = head + "\n…\n" + tail
-        }
+        let truncated = text.headAndTailTruncated()
         return """
         Título del documento: \(title)
 
