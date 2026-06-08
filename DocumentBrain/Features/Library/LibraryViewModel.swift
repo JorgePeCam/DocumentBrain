@@ -38,6 +38,10 @@ final class LibraryViewModel: ObservableObject {
     @Published var sortOption: LibrarySortOption = .newest
     @Published var userErrorMessage: String?
 
+    // Content search
+    @Published var contentSearchResults: [ContentSearchResult] = []
+    @Published var isSearchingContent = false
+
     // Folder navigation
     @Published var currentFolderId: String?
     @Published var folderPath: [Folder] = []
@@ -46,6 +50,8 @@ final class LibraryViewModel: ObservableObject {
 
     private let repository = DocumentRepository()
     private let folderRepository = FolderRepository()
+    private let chunkRepository = ChunkRepository()
+    private var searchTask: Task<Void, Never>?
 
     let allowedContentTypes: [UTType] = [
         .pdf, .image, .plainText,
@@ -197,6 +203,38 @@ final class LibraryViewModel: ObservableObject {
             } catch {
                 AppLogger.error("Error moviendo documento: \(error.localizedDescription)")
                 userErrorMessage = AppLanguage.current.errorMoveDocument
+            }
+        }
+    }
+
+    // MARK: - Content Search
+
+    func searchContent(query: String) {
+        searchTask?.cancel()
+
+        guard query.count >= 2 else {
+            contentSearchResults = []
+            isSearchingContent = false
+            return
+        }
+
+        isSearchingContent = true
+        searchTask = Task {
+            // 300ms debounce
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+
+            do {
+                let results = try await chunkRepository.searchContent(query: query)
+                if !Task.isCancelled {
+                    contentSearchResults = results
+                    isSearchingContent = false
+                }
+            } catch {
+                if !Task.isCancelled {
+                    contentSearchResults = []
+                    isSearchingContent = false
+                }
             }
         }
     }

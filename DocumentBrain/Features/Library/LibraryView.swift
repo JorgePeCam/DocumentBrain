@@ -20,7 +20,9 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if viewModel.documents.isEmpty && viewModel.folders.isEmpty && !viewModel.isInFolder {
+                if !searchText.isEmpty {
+                    contentSearchResultsList
+                } else if viewModel.documents.isEmpty && viewModel.folders.isEmpty && !viewModel.isInFolder {
                     emptyState
                 } else {
                     contentGrid
@@ -29,6 +31,9 @@ struct LibraryView: View {
             .navigationTitle(viewModel.currentFolderName)
             .navigationBarTitleDisplayMode(viewModel.isInFolder ? .inline : .large)
             .searchable(text: $searchText, prompt: lang.librarySearch)
+            .onChange(of: searchText) { _, newValue in
+                viewModel.searchContent(query: newValue)
+            }
             .toolbar {
                 if viewModel.isInFolder {
                     ToolbarItem(placement: .topBarLeading) {
@@ -493,6 +498,69 @@ struct LibraryView: View {
             }
         }
         .presentationDetents([.medium])
+    }
+
+    // MARK: - Content Search Results
+
+    private var contentSearchResultsList: some View {
+        Group {
+            if viewModel.isSearchingContent {
+                VStack {
+                    Spacer()
+                    ProgressView()
+                        .tint(Color.appAccent)
+                    Spacer()
+                }
+            } else if viewModel.contentSearchResults.isEmpty && searchText.count >= 2 {
+                VStack(spacing: 16) {
+                    Spacer()
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(.tertiary)
+                    Text("Sin resultados para «\(searchText)»")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Text("Prueba con otras palabras")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                }
+            } else {
+                List(viewModel.contentSearchResults) { result in
+                    NavigationLink(value: result.documentId) {
+                        contentSearchRow(result)
+                    }
+                    .listRowBackground(Color.appCard)
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+
+    private func contentSearchRow(_ result: ContentSearchResult) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(LinearGradient.accentSoftGradient)
+                    .frame(width: 40, height: 40)
+                Image(systemName: result.fileTypeEnum.systemImage)
+                    .font(.system(size: 16, weight: .light))
+                    .foregroundStyle(Color.appAccent)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(result.documentTitle)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+
+                Text(result.highlightedSnippet(for: searchText))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     // MARK: - Helpers

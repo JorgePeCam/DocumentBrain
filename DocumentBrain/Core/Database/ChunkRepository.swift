@@ -190,6 +190,50 @@ struct ChunkRepository {
         """, arguments: [query, limit])
     }
 
+    // MARK: - Content Search (library full-text search)
+
+    /// Searches chunk content across all documents.
+    /// Returns the best-matching chunk per document, up to `limit` documents.
+    func searchContent(query: String, limit: Int = 15) async throws -> [ContentSearchResult] {
+        let terms = Self.ftsTerms(from: query)
+        guard !terms.isEmpty else { return [] }
+
+        return try await db.dbWriter.read { db in
+            let ftsQuery = Self.buildFTSQuery(from: terms, useOR: true)
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT c.id, c.documentId, c.content, c.chunkIndex, d.title, d.fileType
+                FROM documentChunk_fts fts
+                JOIN documentChunk c ON c.rowid = fts.rowid
+                JOIN document d ON c.documentId = d.id
+                WHERE documentChunk_fts MATCH ?
+                  AND d.processingStatus = 'ready'
+                ORDER BY rank
+                LIMIT 50
+            """, arguments: [ftsQuery])
+
+            // Deduplicate: keep only the best (first) chunk per document
+            var seenDocuments = Set<String>()
+            var results: [ContentSearchResult] = []
+
+            for row in rows {
+                let documentId: String = row["documentId"]
+                guard !seenDocuments.contains(documentId) else { continue }
+                seenDocuments.insert(documentId)
+
+                results.append(ContentSearchResult(
+                    documentId: documentId,
+                    documentTitle: row["title"],
+                    fileType: row["fileType"],
+                    chunkContent: row["content"]
+                ))
+
+                if results.count >= limit { break }
+            }
+
+            return results
+        }
+    }
+
     // MARK: - Hybrid Search
 
     func hybridSearch(
