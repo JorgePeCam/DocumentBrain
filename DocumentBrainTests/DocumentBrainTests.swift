@@ -401,3 +401,151 @@ final class QAServicePromptTests: XCTestCase {
         XCTAssertTrue(prompt.contains(question))
     }
 }
+
+// MARK: - String search helpers
+
+final class StringSearchTests: XCTestCase {
+
+    func testNormalizedForSearch_removesAccents() {
+        XCTAssertEqual("Málaga".normalizedForSearch, "malaga")
+        XCTAssertEqual("AVIÓN".normalizedForSearch, "avion")
+    }
+
+    func testNormalizedForSearch_lowercases() {
+        XCTAssertEqual("Ryanair".normalizedForSearch, "ryanair")
+    }
+
+    func testHeadAndTailTruncated_shortTextUnchanged() {
+        let s = "texto corto"
+        XCTAssertEqual(s.headAndTailTruncated(), s)
+    }
+
+    func testHeadAndTailTruncated_exactlyAtLimitUnchanged() {
+        let s = String(repeating: "x", count: 4000)
+        XCTAssertEqual(s.headAndTailTruncated(), s)
+    }
+
+    func testHeadAndTailTruncated_longTextKeepsHeadAndTail() {
+        let head = String(repeating: "A", count: 2500)
+        let mid  = String(repeating: "B", count: 3000)
+        let tail = String(repeating: "C", count: 1000)
+        let truncated = (head + mid + tail).headAndTailTruncated()
+
+        XCTAssertTrue(truncated.hasPrefix("A"))
+        XCTAssertTrue(truncated.hasSuffix("C"))
+        XCTAssertTrue(truncated.contains("…"))
+        XCTAssertEqual(truncated.count, 2500 + 3 + 1000) // head + "\n…\n" + tail
+    }
+}
+
+// MARK: - StructuredDocumentData
+
+final class StructuredDocumentDataTests: XCTestCase {
+
+    func testFormattedAmount_nilWhenNoAmount() {
+        let d = StructuredDocumentData()
+        XCTAssertNil(d.formattedAmount)
+    }
+
+    func testFormattedAmount_includesValue() {
+        var d = StructuredDocumentData()
+        d.amount = 1234.5
+        d.currency = "EUR"
+        XCTAssertEqual(d.formattedAmount?.contains("234"), true)
+    }
+
+    func testFormattedDate_parsesISODate() {
+        var d = StructuredDocumentData()
+        d.date = "2025-08-05"
+        XCTAssertEqual(d.formattedDate?.contains("2025"), true)
+    }
+
+    func testFormattedDate_invalidReturnsRawString() {
+        var d = StructuredDocumentData()
+        d.date = "not-a-date"
+        XCTAssertEqual(d.formattedDate, "not-a-date")
+    }
+
+    func testIsEmpty_trueWhenCoreFieldsNil() {
+        XCTAssertTrue(StructuredDocumentData().isEmpty)
+    }
+
+    func testIsEmpty_falseWhenVendorPresent() {
+        var d = StructuredDocumentData()
+        d.vendor = "Ryanair"
+        XCTAssertFalse(d.isEmpty)
+    }
+
+    func testIsTravelOrEvent_classification() {
+        XCTAssertTrue(StructuredDocumentData.DocumentType.flight.isTravelOrEvent)
+        XCTAssertTrue(StructuredDocumentData.DocumentType.event.isTravelOrEvent)
+        XCTAssertTrue(StructuredDocumentData.DocumentType.ticket.isTravelOrEvent)
+        XCTAssertFalse(StructuredDocumentData.DocumentType.invoice.isTravelOrEvent)
+    }
+}
+
+// MARK: - ContentSearchResult snippet
+
+final class ContentSearchResultTests: XCTestCase {
+
+    private func make(_ content: String) -> ContentSearchResult {
+        ContentSearchResult(documentId: "d", documentTitle: "t", fileType: "pdf", chunkContent: content)
+    }
+
+    func testSnippet_containsMatchedTerm() {
+        let r = make("El pasajero embarca en el vuelo FR347 con destino Madrid a las 18:40.")
+        XCTAssertTrue(r.snippet(for: "FR347", windowSize: 30, leftContext: 10).contains("FR347"))
+    }
+
+    func testSnippet_noLeadingEllipsisWhenMatchAtStart() {
+        let r = make("Madrid es el destino del vuelo de mañana por la tarde.")
+        XCTAssertFalse(r.snippet(for: "Madrid", windowSize: 40, leftContext: 40).hasPrefix("…"))
+    }
+
+    func testSnippet_trailingEllipsisWhenClipped() {
+        let long = "Madrid " + String(repeating: "texto adicional ", count: 50)
+        XCTAssertTrue(make(long).snippet(for: "Madrid", windowSize: 50, leftContext: 10).hasSuffix("…"))
+    }
+
+    func testSnippet_preservesAccentsFromOriginalText() {
+        let r = make("Billete de tren con destino Málaga centro.")
+        XCTAssertTrue(r.snippet(for: "malaga", windowSize: 60, leftContext: 40).contains("Málaga"))
+    }
+
+    func testSnippet_noMatch_returnsTextWithoutLeadingEllipsis() {
+        let r = make("Contenido sin coincidencias relevantes aquí.")
+        let s = r.snippet(for: "zzzzz", windowSize: 100, leftContext: 40)
+        XCTAssertFalse(s.isEmpty)
+        XCTAssertFalse(s.hasPrefix("…"))
+    }
+}
+
+// MARK: - BarcodeKind classification
+
+final class BarcodeKindTests: XCTestCase {
+
+    func testBoardingPass_BCBPStartsWithMAndDigit() {
+        if case .boardingPass = BarcodeKind(payload: "M1DESMARAIS/LUC       EABC123 MADBCN") { } else {
+            XCTFail("Expected boarding pass")
+        }
+    }
+
+    func testURL_httpsPayload() {
+        if case .url = BarcodeKind(payload: "https://example.com/ticket") { } else {
+            XCTFail("Expected URL")
+        }
+    }
+
+    func testGeneric_plainCode() {
+        if case .generic = BarcodeKind(payload: "SOME-RANDOM-CODE-123") { } else {
+            XCTFail("Expected generic")
+        }
+    }
+
+    func testGeneric_MNotFollowedByDigitIsNotBoardingPass() {
+        // Starts with 'M' but second char is a letter → not a BCBP boarding pass
+        if case .generic = BarcodeKind(payload: "MADRID-BARCELONA-TICKET-2025") { } else {
+            XCTFail("Expected generic, not boarding pass")
+        }
+    }
+}

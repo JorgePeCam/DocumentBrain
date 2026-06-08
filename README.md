@@ -2,7 +2,7 @@
 
 DocumentBrain is an iOS app for **organizing documents and asking questions about their content** using on-device semantic search and a conversational AI assistant.
 
-You import files, the app extracts text, splits it into semantic chunks, generates vector embeddings, and then answers your questions in a chat interface with citations back to the source document. Invoices, boarding passes, tickets and contracts are automatically analysed to extract structured data — vendor, amount, flight route, seat, event details — and any QR/barcodes are detected so you can display them at full brightness directly from the app.
+You import files, the app extracts text, splits it into semantic chunks, generates vector embeddings, and then answers your questions in a chat interface with citations back to the source document. Invoices, boarding passes, tickets and contracts are automatically analysed to extract structured data — vendor, amount, flight route, seat, event details — which you can add to your calendar in one tap. Any QR/barcodes are detected so you can display them at full brightness directly from the app, and a full-text search lets you find the exact fragment of any document instantly.
 
 ---
 
@@ -38,7 +38,7 @@ DocumentBrain lets you:
 
 ### Structured metadata extraction
 
-DocumentBrain sends the document text to Gemini via the Cloudflare Worker proxy and extracts structured fields depending on the document type:
+DocumentBrain analyses each document and extracts structured fields depending on the document type:
 
 | Type | Fields extracted |
 |---|---|
@@ -47,10 +47,20 @@ DocumentBrain sends the document text to Gemini via the Cloudflare Worker proxy 
 | Concert / event ticket | Event title, venue, date, time, seat |
 | Contract / payslip / statement | Vendor, date, amount |
 
+- **Two-tier extraction**: Gemini (via the Cloudflare Worker proxy) is used first for best quality; when there is no network or the proxy is unconfigured, the app falls back to **Apple Foundation Models** on-device (iOS 26+), which fills a type-safe `@Generable` struct directly — no JSON parsing or truncation issues, and works fully offline at no cost.
 - **Contextual UI**: the detail card adapts its layout and labels to the document type (e.g. "Airline" instead of "Vendor" for flights, route row with arrow for origin → destination).
 - **Vision OCR supplement**: PDF pages with fewer than 500 PDFKit characters also receive a Vision OCR pass, capturing visual-only elements like boarding pass card fields that PDFKit misses.
-- **Robust parsing**: the extractor tolerates code-fenced JSON, prose preambles, and truncated responses by scanning for the outermost `{…}` block.
+- **Robust parsing**: the Gemini path tolerates code-fenced JSON, prose preambles, and truncated responses by scanning for the outermost `{…}` block.
 - Manual re-extraction available via the ↺ button on the metadata card.
+
+### Add to Calendar
+
+- Whenever a document yields a date, the metadata card shows an **"Añadir al Calendario"** button.
+- Tapping it opens the native iOS event editor (`EKEventEditViewController`) pre-filled from the extracted fields:
+  - **Flights**: title `Airline · Origin → Destination · Flight no.`, departure/arrival as start/end times (overnight arrivals roll to the next day), seat in the notes.
+  - **Events**: title from the event name, venue as the location.
+  - **Other documents**: an all-day event on the document date.
+- Requests **write-only** calendar access on iOS 17+ (full access on iOS 16); if denied, an alert offers a shortcut to Settings.
 
 ### Barcode & QR detection
 
@@ -64,9 +74,16 @@ DocumentBrain sends the document text to Gemini via the Cloudflare Worker proxy 
 ### Semantic search
 
 - **Hybrid search**: vector cosine similarity + FTS5 keyword search, merged with chunk-ID deduplication.
-- Configurable minimum score thresholds (0.15 for vector, 0.25 in strict vector mode).
+- **Score formula**: `0.65·semantic + 0.20·lexical coverage + keyword bonus + entity bonus`. Semantic similarity is the dominant signal; purely semantic matches below 0.50 with no keyword or proper-noun hit are filtered out.
+- **Entity detection**: proper nouns (words capitalised in the original query — names, companies, places, flight numbers) get a relevance boost without relying on a hand-maintained word list.
 - Context expansion: retrieved chunks are enriched with their neighboring fragments to provide more context to the LLM.
 - Short query expansion for conversational follow-ups ("and the author?").
+
+### Full-text content search
+
+- The **library search bar** searches inside document content via FTS5, not just titles.
+- Results show the **exact fragment** where the match appears, with the query terms highlighted in the accent color and a window centered on the first hit.
+- One best match per document, searched globally across every folder, with a 300 ms debounce; tapping a result opens the document detail.
 
 ### Conversational chat
 
@@ -271,6 +288,8 @@ All interactive controls have VoiceOver labels and meet Apple HIG's minimum 44×
 - Conversational history (last 3 turns) is passed to the LLM for coherent multi-question conversations.
 - When retrieved results span multiple documents, the prompt instructs the LLM to disambiguate rather than blend answers.
 
+**Structured metadata extraction** uses the same philosophy with its own two-tier chain: Gemini first for quality, Apple Foundation Models on-device as an offline fallback (iOS 26+). No document content is ever sent anywhere except through the authenticated Cloudflare proxy to Gemini.
+
 ---
 
 ## iCloud Sync
@@ -310,7 +329,8 @@ Supports file attachments, URLs, and shared plain text.
 | On-device LLM | Apple Foundation Models (iOS 26+) |
 | Text extraction | PDFKit, Vision (OCR + barcode detection), ZIPFoundation |
 | Barcode generation | Core Image (PDF417 for boarding passes, QR for generic codes) |
-| Metadata extraction | Gemini Flash via Cloudflare Worker proxy (structured JSON) |
+| Metadata extraction | Gemini Flash (cloud) with Apple Foundation Models `@Generable` on-device fallback (iOS 26+) |
+| Calendar | EventKit / EventKitUI (`EKEventEditViewController`) |
 | Sync | CloudKit / CKSyncEngine (iOS 17+) |
 | Edge proxy | Cloudflare Workers (JavaScript) |
 | Minimum iOS | iOS 16 |
@@ -374,7 +394,7 @@ xcodebuild test \
 
 ## Tests
 
-52 unit tests across 8 test classes in `DocumentBrainTests/`:
+75 unit tests across 12 test classes in `DocumentBrainTests/`:
 
 | Class | Tests | Coverage |
 |---|---|---|
@@ -386,6 +406,10 @@ xcodebuild test \
 | `ChunkingServiceTests` | 10 | Paragraph splitting, overlap, orphan merging |
 | `ChunkRepositoryFTSTests` | 8 | FTS5 index CRUD with in-memory database |
 | `QAServicePromptTests` | 5 | Context prompt assembly and history injection |
+| `StringSearchTests` | 5 | Search normalisation and head+tail truncation |
+| `StructuredDocumentDataTests` | 7 | Amount/date formatting, emptiness, travel classification |
+| `ContentSearchResultTests` | 5 | Snippet windowing, centering, ellipses, accent preservation |
+| `BarcodeKindTests` | 4 | BCBP / URL / generic barcode classification |
 
 Protocol-based injection of `EmbeddingServiceProtocol` makes ViewModel tests deterministic and fast (no CoreML model loaded in tests).
 
@@ -395,11 +419,10 @@ Protocol-based injection of `EmbeddingServiceProtocol` makes ViewModel tests det
 
 The full end-to-end flow is implemented and working:
 
-**ingestion → semantic indexing → folder organization → conversational chat with citations → structured metadata → barcode/QR display**
+**ingestion → semantic indexing → folder organization → conversational chat with citations → structured metadata → barcode/QR display → calendar events → full-text content search**
 
 Potential next areas:
 
-- **Dates → Reminders**: detect dates in structured metadata and offer to create a Calendar reminder.
-- **On-device LLM for metadata**: run extraction locally with Apple Foundation Models instead of the Cloudflare proxy.
-- Tune hybrid search weights (vector vs. FTS5) with a test collection to optimize recall/precision on large document sets.
+- Tune hybrid search weights (vector vs. FTS5) with a labelled test collection to optimize recall/precision on large document sets.
 - Lightweight cross-encoder re-ranking of retrieved chunks before passing them to the LLM.
+- Auto-summary of long documents on import.
