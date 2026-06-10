@@ -72,6 +72,9 @@ struct BarcodeDisplayView: View {
     let payload: String
     @Environment(\.dismiss) private var dismiss
 
+    /// Screen brightness before we boosted it, restored on dismiss.
+    @State private var previousBrightness: CGFloat?
+
     private var kind: BarcodeKind { BarcodeKind(payload: payload) }
 
     var body: some View {
@@ -130,8 +133,15 @@ struct BarcodeDisplayView: View {
             }
         }
         .onAppear {
-            // Max brightness for easy scanning
+            // Boost to max brightness for easy scanning, remembering the prior value
+            previousBrightness = UIScreen.main.brightness
             UIScreen.main.brightness = 1.0
+        }
+        .onDisappear {
+            // Restore the user's original brightness
+            if let previousBrightness {
+                UIScreen.main.brightness = previousBrightness
+            }
         }
     }
 
