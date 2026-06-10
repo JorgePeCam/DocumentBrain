@@ -1,86 +1,125 @@
 /**
  * DocumentBrain API Proxy — Cloudflare Worker
  *
- * Proxies requests to Gemini API injecting the key server-side.
- * The API key never leaves the server.
+ * Proxies requests to Gemini (key injected server-side) and gates access with:
+ *   - x-app-secret           shared app secret (cheap first gate, every route)
+ *   - Apple App Attest        per-device identity → short-lived HMAC session token
+ *   - per-device daily quota  + global daily cap (anti-flood / cost ceiling)
  *
- * Routes:
- *   POST /chat         → gemini:generateContent
- *   POST /chat/stream  → gemini:streamGenerateContent (SSE)
- *   POST /verify       → lightweight key check (uses client-supplied key)
+ * Routes (all POST):
+ *   /attest/challenge → issue a per-device nonce
+ *   /attest/verify    → verify attestation, return session token
+ *   /attest/refresh   → verify assertion, return a fresh session token
+ *   /chat             → gemini:generateContent        (token required when REQUIRE_ATTESTATION="true")
+ *   /chat/stream      → gemini:streamGenerateContent  (SSE)
  */
+
+import { verifyToken } from "./attest.js";
+
+// Durable Object classes must be exported from the Worker entry module.
+export { DeviceAttestation, GlobalLimiter } from "./device.js";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
-// Simple per-IP rate limiting using Cloudflare's Cache API
-const RATE_LIMIT_REQUESTS = 20;
-const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
-
 export default {
   async fetch(request, env) {
-    // CORS preflight
-    if (request.method === "OPTIONS") {
-      return corsResponse(new Response(null, { status: 204 }));
-    }
-
-    if (request.method !== "POST") {
-      return corsResponse(new Response("Method not allowed", { status: 405 }));
-    }
+    if (request.method === "OPTIONS") return corsResponse(new Response(null, { status: 204 }));
+    if (request.method !== "POST") return corsResponse(new Response("Method not allowed", { status: 405 }));
 
     const url = new URL(request.url);
 
-    // Validate shared secret header — rejects requests not from the app
-    const appSecret = request.headers.get("x-app-secret");
-    if (url.pathname !== "/verify" && appSecret !== env.APP_SECRET) {
+    // Shared app secret — first cheap gate for every route
+    if (request.headers.get("x-app-secret") !== env.APP_SECRET) {
       return corsResponse(new Response("Unauthorized", { status: 401 }));
     }
 
-    // Rate limiting (skip for /verify — it uses the user's own key)
-    if (url.pathname !== "/verify") {
-      const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-      const limited = await isRateLimited(ip, env);
-      if (limited) {
-        return corsResponse(new Response("Too Many Requests", { status: 429 }));
-      }
-    }
-
     try {
-      if (url.pathname === "/chat") {
-        return await handleChat(request, env, false);
-      } else if (url.pathname === "/chat/stream") {
-        return await handleChat(request, env, true);
-      } else if (url.pathname === "/verify") {
-        return await handleVerify(request);
-      } else {
-        return corsResponse(new Response("Not Found", { status: 404 }));
+      switch (url.pathname) {
+        case "/attest/challenge": return await handleChallenge(request, env);
+        case "/attest/verify":    return await handleAttestVerify(request, env);
+        case "/attest/refresh":   return await handleAttestRefresh(request, env);
+        case "/chat":             return await handleGatedChat(request, env, false);
+        case "/chat/stream":      return await handleGatedChat(request, env, true);
+        default:                  return corsResponse(new Response("Not Found", { status: 404 }));
       }
     } catch (err) {
-      return corsResponse(new Response(JSON.stringify({ error: err.message }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }));
+      return corsResponse(Response.json({ error: err.message }, { status: 500 }));
     }
-  }
+  },
 };
 
 // ---------------------------------------------------------------------------
-// Handlers
+// Attestation endpoints
 // ---------------------------------------------------------------------------
 
-async function handleChat(request, env, stream) {
-  const body = await request.json();
+async function handleChallenge(request, env) {
+  const { keyId } = await request.json();
+  if (!keyId) return corsResponse(new Response("Missing keyId", { status: 400 }));
+  const result = await env.DEVICE_DO.getByName(keyId).issueChallenge();
+  return corsResponse(Response.json(result));
+}
 
+async function handleAttestVerify(request, env) {
+  const { keyId, attestation } = await request.json();
+  if (!keyId || !attestation) return corsResponse(new Response("Missing keyId/attestation", { status: 400 }));
+  const result = await env.DEVICE_DO.getByName(keyId).verify({ attestationB64: attestation, keyIdB64: keyId });
+  return corsResponse(Response.json(result, { status: result.ok ? 200 : 401 }));
+}
+
+async function handleAttestRefresh(request, env) {
+  const { keyId, assertion, clientData } = await request.json();
+  if (!keyId || !assertion || !clientData) return corsResponse(new Response("Missing fields", { status: 400 }));
+  const result = await env.DEVICE_DO.getByName(keyId).refresh({
+    assertionB64: assertion,
+    clientDataB64: clientData,
+    keyIdB64: keyId,
+  });
+  return corsResponse(Response.json(result, { status: result.ok ? 200 : 401 }));
+}
+
+// ---------------------------------------------------------------------------
+// Gated chat
+// ---------------------------------------------------------------------------
+
+async function handleGatedChat(request, env, stream) {
+  const requireAttest = env.REQUIRE_ATTESTATION === "true";
+
+  // Identify the device via the session token
+  let keyId = null;
+  const auth = request.headers.get("Authorization") || "";
+  if (auth.startsWith("Bearer ")) {
+    const v = await verifyToken(auth.slice(7), env.TOKEN_SECRET || env.APP_SECRET);
+    if (v.ok) keyId = v.keyId;
+  }
+  if (requireAttest && !keyId) {
+    return corsResponse(new Response("Attestation required", { status: 401 }));
+  }
+
+  // Per-device daily quota (only when we have an attested identity)
+  if (keyId) {
+    const limit = parseInt(env.PER_DEVICE_DAILY || "50");
+    const q = await env.DEVICE_DO.getByName(keyId).consumeQuota(limit);
+    if (!q.allowed) return corsResponse(new Response("Daily device limit reached", { status: 429 }));
+  }
+
+  // Global daily cap (always) — bounds worst-case cost regardless of identity
+  const globalLimit = parseInt(env.GLOBAL_DAILY || "5000");
+  const g = await env.GLOBAL_DO.getByName("global").consume(globalLimit);
+  if (!g.allowed) return corsResponse(new Response("Service temporarily unavailable", { status: 429 }));
+
+  return forwardToGemini(request, env, stream);
+}
+
+async function forwardToGemini(request, env, stream) {
+  const body = await request.json();
   const geminiPath = stream
     ? `${GEMINI_BASE}/${GEMINI_MODEL}:streamGenerateContent?alt=sse`
     : `${GEMINI_BASE}/${GEMINI_MODEL}:generateContent`;
 
   const geminiResponse = await fetch(geminiPath, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": env.GEMINI_API_KEY,
-    },
+    headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
     body: JSON.stringify(body),
   });
 
@@ -89,77 +128,23 @@ async function handleChat(request, env, stream) {
     return corsResponse(new Response(errorText, { status: geminiResponse.status }));
   }
 
-  // For streaming, pass through the SSE response directly
   if (stream) {
     const headers = new Headers(geminiResponse.headers);
     headers.set("Access-Control-Allow-Origin", "*");
-    return new Response(geminiResponse.body, {
-      status: geminiResponse.status,
-      headers,
-    });
+    return new Response(geminiResponse.body, { status: geminiResponse.status, headers });
   }
 
-  const data = await geminiResponse.json();
-  return corsResponse(Response.json(data));
-}
-
-async function handleVerify(request) {
-  // For /verify the client sends their own key — we just proxy the call
-  const clientKey = request.headers.get("x-goog-api-key");
-  if (!clientKey) {
-    return corsResponse(new Response("Missing key", { status: 400 }));
-  }
-
-  const body = await request.json();
-
-  const geminiResponse = await fetch(
-    `${GEMINI_BASE}/gemini-1.5-flash:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": clientKey,
-      },
-      body: JSON.stringify(body),
-    }
-  );
-
-  return corsResponse(new Response(null, { status: geminiResponse.status }));
+  return corsResponse(Response.json(await geminiResponse.json()));
 }
 
 // ---------------------------------------------------------------------------
-// Rate limiting — uses KV if available, falls back to in-memory per-isolate
-// ---------------------------------------------------------------------------
-
-async function isRateLimited(ip, env) {
-  if (!env.RATE_LIMIT_KV) return false; // KV not bound — skip
-
-  const key = `rl:${ip}:${todayKey()}`;
-  const current = parseInt((await env.RATE_LIMIT_KV.get(key)) ?? "0");
-
-  if (current >= RATE_LIMIT_REQUESTS) return true;
-
-  await env.RATE_LIMIT_KV.put(key, String(current + 1), {
-    expirationTtl: 86400, // 24h
-  });
-  return false;
-}
-
-function todayKey() {
-  return new Date().toISOString().slice(0, 10); // "2026-05-27"
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
+// CORS
 // ---------------------------------------------------------------------------
 
 function corsResponse(response) {
   const headers = new Headers(response.headers);
   headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Access-Control-Allow-Headers", "Content-Type, x-app-secret, x-goog-api-key");
+  headers.set("Access-Control-Allow-Headers", "Content-Type, x-app-secret, Authorization");
   headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  return new Response(response.body, {
-    status: response.status,
-    headers,
-  });
+  return new Response(response.body, { status: response.status, headers });
 }

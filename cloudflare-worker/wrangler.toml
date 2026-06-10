@@ -1,6 +1,38 @@
 name = "documentbrain-api"
 main = "src/index.js"
-compatibility_date = "2024-01-01"
+# >= 2024-04-03 required for Durable Object RPC methods
+compatibility_date = "2024-11-01"
 
 [vars]
 ALLOWED_ORIGIN = "DocumentBrain-iOS"
+
+# Apple App Attest identifiers — appId = "TEAM_ID.BUNDLE_ID".
+# ⚠️ Verify these match your signing config before flipping REQUIRE_ATTESTATION on.
+APPLE_TEAM_ID = "72929TBAA4"
+APPLE_BUNDLE_ID = "Jorge-Perez-Campos.DocumentBrain"
+
+# Staged rollout flag: keep "false" to deploy the Worker without breaking the
+# current app, flip to "true" once the App-Attest-enabled app build is live.
+REQUIRE_ATTESTATION = "false"
+
+# Rate limits (anti-flood / cost ceiling)
+PER_DEVICE_DAILY = "50"
+GLOBAL_DAILY = "5000"
+TOKEN_TTL_SECONDS = "86400"
+
+# Secrets (set with `wrangler secret put`, never committed):
+#   GEMINI_API_KEY   — Gemini API key
+#   APP_SECRET       — shared app secret (x-app-secret)
+#   TOKEN_SECRET     — HMAC key for session tokens (falls back to APP_SECRET if unset)
+
+[[durable_objects.bindings]]
+name = "DEVICE_DO"
+class_name = "DeviceAttestation"
+
+[[durable_objects.bindings]]
+name = "GLOBAL_DO"
+class_name = "GlobalLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DeviceAttestation", "GlobalLimiter"]
