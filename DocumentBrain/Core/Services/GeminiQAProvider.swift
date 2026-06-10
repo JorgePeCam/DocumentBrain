@@ -28,13 +28,17 @@ final class GeminiQAProvider: StreamableQAProvider {
 
     // MARK: - Request builder
 
-    private func makeRequest(path: String) -> URLRequest? {
+    private func makeRequest(path: String) async -> URLRequest? {
         guard !Self.workerURL.isEmpty,
               let url = URL(string: Self.workerURL + path) else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue(Self.appSecret, forHTTPHeaderField: "x-app-secret")
+        // App Attest session token (gates /chat once the Worker enforces it)
+        if let token = await AppAttestService.shared.currentToken() {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         return request
     }
 
@@ -55,7 +59,7 @@ final class GeminiQAProvider: StreamableQAProvider {
     func answer(query: String, context: [SearchResult], history: [ConversationTurn] = []) async throws -> String {
         AppLogger.debug("[Worker] 🚀 Starting request")
 
-        guard var request = makeRequest(path: "/chat") else {
+        guard var request = await makeRequest(path: "/chat") else {
             AppLogger.debug("[Worker] ❌ Worker URL not configured")
             throw QAError.noProviderAvailable
         }
@@ -114,7 +118,7 @@ final class GeminiQAProvider: StreamableQAProvider {
     func streamAnswer(query: String, context: [SearchResult], history: [ConversationTurn] = [], onUpdate: @escaping (String) -> Void) async throws {
         AppLogger.debug("[Worker] 🚀 Starting STREAM request")
 
-        guard var request = makeRequest(path: "/chat/stream") else {
+        guard var request = await makeRequest(path: "/chat/stream") else {
             throw QAError.noProviderAvailable
         }
 

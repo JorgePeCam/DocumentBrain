@@ -105,6 +105,9 @@ struct MetadataExtractionService {
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue(Self.appSecret, forHTTPHeaderField: "x-app-secret")
+        if let token = await AppAttestService.shared.currentToken() {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         request.timeoutInterval = 20
 
         let body: [String: Any] = [
