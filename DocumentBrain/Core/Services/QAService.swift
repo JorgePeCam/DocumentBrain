@@ -131,6 +131,7 @@ final class QAService {
 enum QAError: LocalizedError {
     case noProviderAvailable
     case apiError(String)
+    case rateLimited
 
     var errorDescription: String? {
         switch self {
@@ -138,6 +139,8 @@ enum QAError: LocalizedError {
             return "No se pudo generar una respuesta. Inténtalo de nuevo."
         case .apiError(let message):
             return message
+        case .rateLimited:
+            return "Se alcanzó el límite de consultas."
         }
     }
 }

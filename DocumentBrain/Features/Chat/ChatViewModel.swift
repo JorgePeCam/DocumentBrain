@@ -272,7 +272,10 @@ final class ChatViewModel: ObservableObject {
                     }
                 } catch {
                     AppLogger.debug("[QA] ⚠️ LLM failed, using extractive fallback. Error: \(error.localizedDescription)")
-                    let answer = buildExtractiveAnswer(from: contextForAnswer, query: query)
+                    var answer = buildExtractiveAnswer(from: contextForAnswer, query: query)
+                    if case QAError.rateLimited = error {
+                        answer = rateLimitNotice() + "\n\n" + answer
+                    }
                     if let placeholderIndex, placeholderIndex < messages.count {
                         let msg = ChatMessage(id: messages[placeholderIndex].id, content: answer, isUser: false, citations: citations, debugInfo: debugInfo)
                         messages[placeholderIndex] = msg
@@ -412,6 +415,13 @@ final class ChatViewModel: ObservableObject {
             return String(truncated[..<lastSpace]) + "..."
         }
         return truncated + "..."
+    }
+
+    /// Notice prepended to a local answer when the cloud limit was hit.
+    private func rateLimitNotice() -> String {
+        AppLanguage.current == .spanish
+            ? "⚠️ Has alcanzado el límite de consultas por hoy. Esta respuesta se ha generado en tu dispositivo a partir de tus documentos."
+            : "⚠️ You've reached today's query limit. This answer was generated on-device from your documents."
     }
 
     // MARK: - Extractive Fallback (used when no LLM provider is available)

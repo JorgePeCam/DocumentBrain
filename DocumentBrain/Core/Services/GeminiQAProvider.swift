@@ -91,7 +91,7 @@ final class GeminiQAProvider: StreamableQAProvider {
 
         if httpResponse.statusCode == 429 {
             AppLogger.debug("[Worker] HTTP 429 — rate limit reached.")
-            throw QAError.noProviderAvailable
+            throw QAError.rateLimited
         }
 
         if httpResponse.statusCode != 200 {
@@ -143,7 +143,7 @@ final class GeminiQAProvider: StreamableQAProvider {
 
         if httpResponse.statusCode == 429 {
             AppLogger.debug("[Worker] HTTP 429 — rate limit. Falling back.")
-            throw QAError.noProviderAvailable
+            throw QAError.rateLimited
         }
 
         guard httpResponse.statusCode == 200 else {
