@@ -16,8 +16,9 @@ APPLE_BUNDLE_ID = "Jorge-Perez-Campos.DocumentBrain"
 REQUIRE_ATTESTATION = "false"
 
 # Rate limits (anti-flood / cost ceiling)
-PER_DEVICE_DAILY = "50"
-GLOBAL_DAILY = "5000"
+PER_IP_DAILY = "100"      # per source IP — active immediately, no App Attest needed
+PER_DEVICE_DAILY = "50"   # per attested device — needs App Attest
+GLOBAL_DAILY = "5000"     # hard ceiling across everyone
 TOKEN_TTL_SECONDS = "86400"
 
 # Secrets (set with `wrangler secret put`, never committed):

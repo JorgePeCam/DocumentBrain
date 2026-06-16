@@ -96,6 +96,13 @@ async function handleGatedChat(request, env, stream) {
     return corsResponse(new Response("Attestation required", { status: 401 }));
   }
 
+  // Per-IP daily limit — works WITHOUT App Attest, so it protects from day one
+  // (a single IP can't drain the whole global cap on its own).
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const perIp = parseInt(env.PER_IP_DAILY || "100");
+  const ipResult = await env.GLOBAL_DO.getByName(`ip:${ip}`).consume(perIp);
+  if (!ipResult.allowed) return corsResponse(new Response("Daily IP limit reached", { status: 429 }));
+
   // Per-device daily quota (only when we have an attested identity)
   if (keyId) {
     const limit = parseInt(env.PER_DEVICE_DAILY || "50");
