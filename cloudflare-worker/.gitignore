@@ -1,0 +1,4 @@
+# Wrangler local state & cache (account info, build artifacts)
+.wrangler/
+node_modules/
+dist/

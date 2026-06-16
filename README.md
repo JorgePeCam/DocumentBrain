@@ -240,11 +240,14 @@ The Worker (`cloudflare-worker/src/index.js`) implements:
 
 | Mechanism | Implementation |
 |---|---|
-| App authentication | `x-app-secret` header validated against the `APP_SECRET` environment variable |
-| Per-IP rate limiting | Cloudflare KV: 20 requests/IP/day; returns `429` when exceeded |
+| App authentication | `x-app-secret` header validated against the `APP_SECRET` environment variable (first gate, every route) |
+| Device attestation | Apple App Attest: the app proves it is a genuine instance via the `/attest/*` endpoints and receives a short-lived HMAC session token; enforced on `/chat` when `REQUIRE_ATTESTATION` is enabled |
+| Rate limiting | Strongly-consistent Durable Objects: per-IP (100/day), per-attested-device (50/day) and a global ceiling (5000/day); each returns `429` |
 | Key injection | `x-goog-api-key` header added server-side, never exposed to the client |
 | SSE streaming | Direct pass-through of Gemini's response body with CORS headers |
-| CORS | Restricted to the methods and headers used by the app (`POST`, `x-app-secret`) |
+| CORS | Restricted to the methods and headers used by the app (`POST`, `x-app-secret`, `Authorization`) |
+
+See [`cloudflare-worker/APP_ATTEST.md`](cloudflare-worker/APP_ATTEST.md) for the attestation flow and staged rollout. The per-IP and global limits are active on deploy without App Attest; the per-device limit and unauthorized-client blocking require the attestation rollout.
 
 ### Local persistence
 
