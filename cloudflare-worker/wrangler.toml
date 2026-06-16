@@ -1,5 +1,6 @@
 name = "documentbrain-api"
 main = "src/index.js"
+account_id = "d8dedb9a97eb7d30f41a5dc95a55ff3c"
 # >= 2024-04-03 required for Durable Object RPC methods
 compatibility_date = "2024-11-01"
 
