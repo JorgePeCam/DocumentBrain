@@ -157,6 +157,23 @@ cloudflare-worker/                    # Edge proxy (Cloudflare Workers)
 
 ---
 
+## Design decisions
+
+Notable trade-offs, and why they were made this way rather than the more obvious alternative.
+
+| Decision | Why |
+|---|---|
+| **On-device embeddings (CoreML MiniLM)** instead of an embeddings API | Zero marginal cost per query, works fully offline, and no document text ever needs to leave the device to be indexed. Trade-off: the model ships in the binary (~90 MB) and can't be improved server-side without an app update. |
+| **Hybrid search (vector + FTS5)** instead of pure vector search | Pure semantic search misses exact-term queries — flight numbers, names, invoice IDs — that a user expects to just work. A weighted merge (`0.65·semantic + 0.20·lexical + bonuses`) fixes recall on those without standing up a separate reranking service. |
+| **Three-tier LLM fallback** (Gemini → on-device Foundation Models → local extractive answer) instead of a single provider | The app never goes fully mute: no network degrades to on-device generation, no Apple Intelligence degrades to a still-useful extracted fragment. Each tier is strictly cheaper/more available than the one above it. |
+| **Durable Objects for rate limiting** instead of Workers KV | Quota counters need strong consistency — KV is eventually consistent, so concurrent requests from the same device could race past a limit before a write propagates. DOs serialize access per key, so the counter can't be raced. |
+| **Layered abuse defense shipped incrementally** (per-IP cap → App Attest device identity → global ceiling), gated by a `REQUIRE_ATTESTATION` flag | Per-IP limiting protects the proxy from day one with zero client changes. App Attest is a staged rollout specifically so a client/server version mismatch during deployment can't lock out the live app — untokened requests degrade gracefully until the flag is flipped. |
+| **API key isolation via a Cloudflare Worker proxy** instead of calling Gemini directly from the client | The Gemini key never ships in the app binary. Worst case if the binary is reverse-engineered: an attacker recovers the app's shared secret, which at most grants access to the proxy (billed, rate-limited, revocable) — never the underlying API key. |
+| **MVVM + protocol-based dependency injection** instead of ViewModels owning concrete services | `EmbeddingServiceProtocol` lets ViewModel tests run against a mock instead of loading the real CoreML model, which keeps the 75-test suite fast enough to run on every change instead of being skipped. |
+| **GRDB over CoreData** | Needed direct SQL control for FTS5 virtual tables and a hand-tuned bounded-priority-queue vector search — both awkward to express through CoreData's object graph. |
+
+---
+
 ## RAG Pipeline
 
 ```

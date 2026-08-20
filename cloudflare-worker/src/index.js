@@ -85,11 +85,18 @@ async function handleAttestRefresh(request, env) {
 async function handleGatedChat(request, env, stream) {
   const requireAttest = env.REQUIRE_ATTESTATION === "true";
 
+  // TOKEN_SECRET must be set explicitly — it must never fall back to APP_SECRET,
+  // which is embedded in the client app bundle and extractable by reverse
+  // engineering. Fail loudly rather than silently accepting forged tokens.
+  if (requireAttest && !env.TOKEN_SECRET) {
+    return corsResponse(Response.json({ error: "Server misconfigured: TOKEN_SECRET not set" }, { status: 500 }));
+  }
+
   // Identify the device via the session token
   let keyId = null;
   const auth = request.headers.get("Authorization") || "";
-  if (auth.startsWith("Bearer ")) {
-    const v = await verifyToken(auth.slice(7), env.TOKEN_SECRET || env.APP_SECRET);
+  if (auth.startsWith("Bearer ") && env.TOKEN_SECRET) {
+    const v = await verifyToken(auth.slice(7), env.TOKEN_SECRET);
     if (v.ok) keyId = v.keyId;
   }
   if (requireAttest && !keyId) {

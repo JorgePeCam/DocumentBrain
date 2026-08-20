@@ -50,7 +50,9 @@ cd cloudflare-worker
 # Secrets (never committed)
 wrangler secret put GEMINI_API_KEY
 wrangler secret put APP_SECRET
-wrangler secret put TOKEN_SECRET     # HMAC key for session tokens
+wrangler secret put TOKEN_SECRET     # HMAC key for session tokens — REQUIRED, must
+                                      # differ from APP_SECRET (that one ships in the
+                                      # client app bundle and is extractable)
 
 # Verify these in wrangler.toml match your signing:
 #   APPLE_TEAM_ID    = "72929TBAA4"

@@ -52,7 +52,7 @@ function concatBytes(...arrays) {
   return out;
 }
 
-function bytesEqual(a, b) {
+export function bytesEqual(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];

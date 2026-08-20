@@ -25,7 +25,8 @@ TOKEN_TTL_SECONDS = "86400"
 # Secrets (set with `wrangler secret put`, never committed):
 #   GEMINI_API_KEY   — Gemini API key
 #   APP_SECRET       — shared app secret (x-app-secret)
-#   TOKEN_SECRET     — HMAC key for session tokens (falls back to APP_SECRET if unset)
+#   TOKEN_SECRET     — HMAC key for session tokens (REQUIRED; must differ from
+#                       APP_SECRET — that value ships in the client app bundle)
 
 [[durable_objects.bindings]]
 name = "DEVICE_DO"

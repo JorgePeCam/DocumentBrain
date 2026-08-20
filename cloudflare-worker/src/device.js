@@ -18,6 +18,7 @@ import {
   issueToken,
   b64ToBytes,
   bytesToB64,
+  bytesEqual,
 } from "./attest.js";
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000; // nonce valid for 5 minutes
@@ -92,6 +93,14 @@ export class DeviceAttestation extends DurableObject {
   async refresh({ assertionB64, clientDataB64, keyIdB64 }) {
     const row = this._row();
     if (!row.attested || !row.public_key) return { ok: false, reason: "not-attested" };
+    if (!row.challenge || !row.challenge_exp || row.challenge_exp < Date.now()) {
+      return { ok: false, reason: "no-challenge" };
+    }
+    // clientData must be the exact challenge we issued — otherwise the /attest/challenge
+    // round trip binds nothing and a stale/foreign assertion could be replayed.
+    if (!bytesEqual(b64ToBytes(clientDataB64), b64ToBytes(row.challenge))) {
+      return { ok: false, reason: "challenge-mismatch" };
+    }
 
     const res = await verifyAssertion({
       assertion: b64ToBytes(assertionB64),
@@ -103,7 +112,10 @@ export class DeviceAttestation extends DurableObject {
     });
     if (!res.ok) return res;
 
-    this.ctx.storage.sql.exec("UPDATE device SET sign_count = ? WHERE id = 0", res.newCount);
+    this.ctx.storage.sql.exec(
+      "UPDATE device SET sign_count = ?, challenge = NULL, challenge_exp = NULL WHERE id = 0",
+      res.newCount
+    );
     const token = await issueToken(keyIdB64, this._tokenSecret(), this._tokenTtl());
     return { ok: true, token };
   }
@@ -120,7 +132,11 @@ export class DeviceAttestation extends DurableObject {
   }
 
   _tokenSecret() {
-    return this.env.TOKEN_SECRET || this.env.APP_SECRET;
+    // No fallback to APP_SECRET: that value is embedded in the client app bundle
+    // and extractable by reverse engineering, so using it to sign session tokens
+    // would let anyone forge a token without ever attesting.
+    if (!this.env.TOKEN_SECRET) throw new Error("TOKEN_SECRET is not configured");
+    return this.env.TOKEN_SECRET;
   }
 
   _tokenTtl() {
