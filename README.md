@@ -1,8 +1,17 @@
 # DocumentBrain
 
-DocumentBrain is an iOS app for **organizing documents and asking questions about their content** using on-device semantic search and a conversational AI assistant.
+**A local-first RAG search engine for your documents, built as an iOS app.** On-device embeddings, hybrid vector+keyword retrieval, a three-tier LLM fallback chain, and a security-hardened edge proxy — no server, no user data leaving the device except an authenticated, rate-limited call to the LLM itself.
+
+<img src="docs/screenshots/chat-citations.png" alt="Chat view answering a question about an invoice, with a tappable source citation and relevance score" width="280">
 
 You import files, the app extracts text, splits it into semantic chunks, generates vector embeddings, and then answers your questions in a chat interface with citations back to the source document. Invoices, boarding passes, tickets and contracts are automatically analysed to extract structured data — vendor, amount, flight route, seat, event details — which you can add to your calendar in one tap. Any QR/barcodes are detected so you can display them at full brightness directly from the app, and a full-text search lets you find the exact fragment of any document instantly.
+
+### What this demonstrates
+
+- **ML on-device**: CoreML embedding model + custom BERT tokenizer, no cloud dependency for search itself.
+- **Systems design under constraints**: hybrid retrieval, a 3-tier LLM fallback chain, and edge rate-limiting with Durable Objects for strong consistency — see [Design decisions](#design-decisions) for the trade-offs.
+- **Security-conscious backend**: API keys never reach the client; device identity via Apple App Attest; layered, staged-rollout rate limiting. See [Security](#security).
+- **Engineering discipline**: MVVM + protocol-based DI, 75 unit tests, typed error handling — not just a demo that only survives the happy path.
 
 ---
 
