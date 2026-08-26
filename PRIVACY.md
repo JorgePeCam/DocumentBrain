@@ -68,4 +68,4 @@ If this policy changes, the "Last updated" date above will change accordingly. M
 
 ## Contact
 
-Questions about this policy or your data can be sent to: **[your contact email here]**
+Questions about this policy or your data can be sent to: **jorgeperez1797@gmail.com**
