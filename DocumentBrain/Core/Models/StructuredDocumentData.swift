@@ -156,4 +156,91 @@ struct StructuredDocumentData: Codable, Equatable {
     var isEmpty: Bool {
         vendor == nil && date == nil && amount == nil && documentType == nil
     }
+
+    // MARK: - Sanitising model output
+
+    /// Strings LLMs use for "not present" instead of omitting the field.
+    static let placeholderValues: Set<String> = [
+        "n/a", "na", "n.a.", "n/d", "-", "—", "–", "?", "null", "nil", "none",
+        "ninguno", "ninguna", "desconocido", "desconocida", "no aplica", "no disponible",
+        "no especificado", "sin datos", "unknown", "not available", "not applicable"
+    ]
+
+    /// Returns a cleaned copy of what a model extracted, or `nil` when nothing worth
+    /// showing is left.
+    ///
+    /// - Placeholder strings ("N/A", "null", "-"…) become `nil`.
+    /// - Dates must be `YYYY-MM-DD`, times `HH:MM`; anything else is dropped.
+    /// - Amounts must be positive (models answer `0` when there is no price).
+    /// - Fields that don't belong to the document type are cleared: travel fields
+    ///   only for flights/tickets, event fields only for events/tickets. An
+    ///   origin equal to its destination is not a route.
+    /// - The card only makes sense for a recognised document type or a real amount;
+    ///   a CV or an article that the model forced into the schema returns `nil`.
+    ///
+    /// Applied when extracting and again when decoding stored data, so documents
+    /// analysed before this existed are cleaned up without re-extraction.
+    func sanitized() -> StructuredDocumentData? {
+        func clean(_ value: String?) -> String? {
+            guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !trimmed.isEmpty,
+                  !Self.placeholderValues.contains(trimmed.lowercased()) else { return nil }
+            return trimmed
+        }
+
+        var d = self
+        d.vendor = clean(vendor)
+        d.date = clean(date).flatMap { Self.isISODate($0) ? $0 : nil }
+        d.amount = amount.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        d.currency = d.amount == nil ? nil : clean(currency)
+        d.origin = clean(origin)
+        d.destination = clean(destination)
+        d.flightNumber = clean(flightNumber)
+        d.departureTime = clean(departureTime).flatMap { Self.isTime($0) ? $0 : nil }
+        d.arrivalTime = clean(arrivalTime).flatMap { Self.isTime($0) ? $0 : nil }
+        d.seat = clean(seat)
+        d.eventTitle = clean(eventTitle)
+
+        let type = d.documentType
+        let allowsTravel = type == .flight || type == .ticket
+        let allowsEvent = type == .event || type == .ticket
+
+        if !allowsTravel {
+            d.origin = nil
+            d.destination = nil
+            d.flightNumber = nil
+            d.arrivalTime = nil
+        }
+        if !allowsEvent {
+            d.eventTitle = nil
+        }
+        if !allowsTravel && !allowsEvent {
+            d.departureTime = nil
+            d.seat = nil
+        }
+        if let origin = d.origin, let destination = d.destination,
+           Self.fold(origin) == Self.fold(destination) {
+            d.origin = nil
+            d.destination = nil
+        }
+
+        let recognisedType = type != nil && type != .other
+        guard recognisedType || d.amount != nil else { return nil }
+        return d
+    }
+
+    private static func fold(_ s: String) -> String {
+        s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+    }
+
+    private static func isISODate(_ s: String) -> Bool {
+        guard s.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil else { return false }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        return formatter.date(from: s) != nil
+    }
+
+    private static func isTime(_ s: String) -> Bool {
+        s.range(of: #"^([01]?\d|2[0-3]):[0-5]\d$"#, options: .regularExpression) != nil
+    }
 }

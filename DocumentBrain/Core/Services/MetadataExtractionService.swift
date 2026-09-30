@@ -1,5 +1,16 @@
 import Foundation
 
+/// Outcome of a metadata extraction attempt.
+enum MetadataExtractionOutcome {
+    /// Structured fields worth showing were found (already sanitised).
+    case found(StructuredDocumentData)
+    /// A model read the document and there is nothing structured in it (a CV, an
+    /// article…). Persisted as an empty marker so the launch sweep doesn't retry it.
+    case nothingToExtract
+    /// No model could be reached or its output was unusable — retry on a later launch.
+    case unavailable
+}
+
 /// Calls the Cloudflare Worker to extract structured metadata from document text.
 /// Uses Gemini with a strict JSON-only prompt. Fails silently — metadata is
 /// always optional enrichment, never a required step.
@@ -23,16 +34,17 @@ struct MetadataExtractionService {
 
     // MARK: - Public API
 
-    /// Returns `nil` if the document has no financial/structured content worth extracting.
     /// Uses Gemini (cloud) when available for best quality; falls back to Apple Foundation
-    /// Models (on-device, iOS 26+) when there is no network or proxy is not configured.
-    func extract(from text: String, documentTitle: String) async -> StructuredDocumentData? {
+    /// Models (on-device, iOS 26+) when there is no network, the proxy is not configured,
+    /// or Gemini's answer can't be parsed.
+    func extract(from text: String, documentTitle: String) async -> MetadataExtractionOutcome {
         // 1. Gemini via Cloudflare proxy (best quality)
         if !Self.workerURL.isEmpty {
             let prompt = buildPrompt(text: text, title: documentTitle)
             do {
                 let raw = try await callWorker(prompt: prompt)
-                return parseJSON(from: raw)
+                if let outcome = parseJSON(from: raw) { return outcome }
+                AppLogger.debug("[Metadata] Gemini answer not parseable — trying on-device fallback")
             } catch {
                 AppLogger.debug("[Metadata] Gemini extraction failed: \(error.localizedDescription) — trying on-device fallback")
             }
@@ -47,7 +59,7 @@ struct MetadataExtractionService {
             }
         }
 
-        return nil
+        return .unavailable
     }
 
     // MARK: - Prompt
@@ -59,8 +71,10 @@ struct MetadataExtractionService {
         return """
         Analiza el siguiente documento y extrae datos estructurados. Puede ser una factura, recibo, contrato, nómina, extracto bancario, presupuesto, tarjeta de embarque (boarding pass), billete de tren/autobús, entrada de concierto/evento, ticket u otro documento con datos concretos.
 
-        Si el documento NO contiene datos estructurados relevantes (artículo de opinión, libro, nota sin datos concretos, etc.), responde con:
+        Si el documento NO es de uno de esos tipos o no contiene datos concretos (currículum/CV, carta, artículo, libro, manual, apuntes, nota sin datos, etc.), responde con:
         {"isEmpty": true}
+
+        NUNCA rellenes campos con valores como "N/A", "-", "desconocido", "null" o 0: si un dato no aparece, omite el campo. Los campos de viaje (origin, destination, flightNumber, arrivalTime, seat) solo se usan en billetes y tarjetas de embarque; eventTitle solo en entradas.
 
         Si SÍ tiene datos estructurados, responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques de código.
 
@@ -146,7 +160,8 @@ struct MetadataExtractionService {
 
     // MARK: - JSON parsing
 
-    private func parseJSON(from raw: String) -> StructuredDocumentData? {
+    /// `nil` when the answer isn't valid JSON (caller may try another model).
+    private func parseJSON(from raw: String) -> MetadataExtractionOutcome? {
         // Try several extraction strategies in order of precision
         let cleaned: String
         if let extracted = extractJSONObject(raw) {
@@ -163,7 +178,7 @@ struct MetadataExtractionService {
 
         // Model returned isEmpty signal
         if json["isEmpty"] as? Bool == true {
-            return nil
+            return .nothingToExtract
         }
 
         var result = StructuredDocumentData()
@@ -198,7 +213,7 @@ struct MetadataExtractionService {
         if let v = json["seat"] as? String, v != "null", !v.isEmpty { result.seat = v }
         if let v = json["eventTitle"] as? String, v != "null", !v.isEmpty { result.eventTitle = v }
 
-        return result.isEmpty ? nil : result
+        return result.sanitized().map(MetadataExtractionOutcome.found) ?? .nothingToExtract
     }
 
     /// Finds the outermost `{…}` block within any surrounding prose or code fences.

@@ -23,7 +23,7 @@ struct FoundationModelMetadataExtractor {
 
     // MARK: - Public API
 
-    func extract(from text: String, documentTitle: String) async -> StructuredDocumentData? {
+    func extract(from text: String, documentTitle: String) async -> MetadataExtractionOutcome {
         #if canImport(FoundationModels)
         let prompt = buildPrompt(text: text, title: documentTitle)
         do {
@@ -32,10 +32,10 @@ struct FoundationModelMetadataExtractor {
             return convert(response.content)
         } catch {
             AppLogger.debug("[Metadata] Foundation Models extraction failed: \(error)")
-            return nil
+            return .unavailable
         }
         #else
-        return nil
+        return .unavailable
         #endif
     }
 
@@ -59,7 +59,10 @@ struct FoundationModelMetadataExtractor {
     - Billete de tren o autobús → documentType: "vuelo"
     - Entrada de concierto, teatro, festival → documentType: "evento"
     - Factura, recibo → documentType: "factura" o "recibo"
+    - Currículum/CV, carta, artículo, libro, manual o apuntes → isEmpty = true y el resto vacío
     - Si el documento no tiene datos estructurados → marca isEmpty como true y deja el resto vacío
+    - NUNCA uses valores de relleno como "N/A", "-", "desconocido" o 0: si un dato no aparece, déjalo vacío
+    - Los campos de viaje (origin, destination, flightNumber, arrivalTime, seat) solo en billetes y tarjetas de embarque; eventTitle solo en entradas
     - date siempre en formato YYYY-MM-DD
     - departureTime y arrivalTime en formato HH:MM
     - amount solo el número decimal, sin símbolo de moneda
@@ -70,8 +73,8 @@ struct FoundationModelMetadataExtractor {
     // MARK: - Conversion
 
     #if canImport(FoundationModels)
-    private func convert(_ result: MetadataResult) -> StructuredDocumentData? {
-        if result.isEmpty == true { return nil }
+    private func convert(_ result: MetadataResult) -> MetadataExtractionOutcome {
+        if result.isEmpty == true { return .nothingToExtract }
 
         var data = StructuredDocumentData()
 
@@ -93,7 +96,7 @@ struct FoundationModelMetadataExtractor {
         if let v = result.seat,          !v.isEmpty { data.seat          = v }
         if let v = result.eventTitle,    !v.isEmpty { data.eventTitle    = v }
 
-        return data.isEmpty ? nil : data
+        return data.sanitized().map(MetadataExtractionOutcome.found) ?? .nothingToExtract
     }
     #endif
 }
@@ -104,7 +107,7 @@ struct FoundationModelMetadataExtractor {
 @available(iOS 26, macOS 26, *)
 @Generable
 struct MetadataResult {
-    @Guide(description: "Document type: factura, recibo, contrato, nómina, extracto, ticket, presupuesto, vuelo, evento, or otro")
+    @Guide(description: "Document type: factura, recibo, contrato, nómina, extracto, ticket, presupuesto, vuelo, evento, or otro. A CV, letter, article or manual is otro")
     var documentType: String?
 
     @Guide(description: "Vendor, airline, merchant, or issuer name")
@@ -113,7 +116,7 @@ struct MetadataResult {
     @Guide(description: "Document date in YYYY-MM-DD format")
     var date: String?
 
-    @Guide(description: "Total amount as a decimal number without currency symbol")
+    @Guide(description: "Total amount as a decimal number without currency symbol. Leave empty if the document has no price; never 0")
     var amount: Double?
 
     @Guide(description: "ISO 4217 currency code: EUR, USD, GBP, etc.")
@@ -122,13 +125,13 @@ struct MetadataResult {
     @Guide(description: "Category: alimentación, transporte, salud, educación, entretenimiento, hogar, trabajo, finanzas, compras, suministros, viajes, or otro")
     var category: String?
 
-    @Guide(description: "Origin city or IATA airport code (flights/trains)")
+    @Guide(description: "Origin city or IATA airport code. Only for boarding passes and train/bus tickets, otherwise leave empty")
     var origin: String?
 
-    @Guide(description: "Destination city or IATA airport code (flights/trains)")
+    @Guide(description: "Destination city or IATA airport code. Only for boarding passes and train/bus tickets, otherwise leave empty")
     var destination: String?
 
-    @Guide(description: "Flight, train, or service number (e.g. FR347, AVE 02154)")
+    @Guide(description: "Flight, train, or service number (e.g. FR347, AVE 02154). Leave empty if not present; never N/A")
     var flightNumber: String?
 
     @Guide(description: "Departure time or event start time in HH:MM format")
@@ -137,10 +140,10 @@ struct MetadataResult {
     @Guide(description: "Arrival time in HH:MM format")
     var arrivalTime: String?
 
-    @Guide(description: "Assigned seat, row, or position")
+    @Guide(description: "Assigned seat, row, or position. Only for tickets and boarding passes, otherwise leave empty")
     var seat: String?
 
-    @Guide(description: "Concert, show, or event name")
+    @Guide(description: "Concert, show, or event name. Only for event tickets, otherwise leave empty")
     var eventTitle: String?
 
     @Guide(description: "True if the document has no structured data worth extracting")

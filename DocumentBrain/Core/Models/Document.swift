@@ -161,7 +161,10 @@ struct Document: Identifiable, Codable, FetchableRecord, PersistableRecord {
     var structuredDataDecoded: StructuredDocumentData? {
         guard let json = structuredData,
               let data = json.data(using: .utf8) else { return nil }
-        return try? JSONDecoder().decode(StructuredDocumentData.self, from: data)
+        // Sanitised on read too, so data stored before sanitising existed (e.g. a CV
+        // with "N/A" flight fields) is cleaned without re-extraction. An empty "{}"
+        // marker (nothing to extract) decodes to nil.
+        return (try? JSONDecoder().decode(StructuredDocumentData.self, from: data))?.sanitized()
     }
 
     var absoluteFileURL: URL? {

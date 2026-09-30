@@ -164,8 +164,17 @@ actor DocumentProcessor {
     }
 
     func extractMetadata(documentId: String, text: String, title: String) async {
-        guard let metadata = await metadataExtractor.extract(from: text, documentTitle: title) else {
+        let metadata: StructuredDocumentData
+        switch await metadataExtractor.extract(from: text, documentTitle: title) {
+        case .found(let data):
+            metadata = data
+        case .nothingToExtract:
+            // Empty marker: the card stays hidden and the launch sweep won't retry
+            // this document (and spend proxy quota) on every launch.
             AppLogger.debug("[Processor] No structured metadata for \(documentId)")
+            metadata = StructuredDocumentData()
+        case .unavailable:
+            AppLogger.debug("[Processor] Metadata extraction unavailable for \(documentId) — will retry later")
             return
         }
         do {

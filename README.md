@@ -11,7 +11,7 @@ You import files, the app extracts text, splits it into semantic chunks, generat
 - **ML on-device**: CoreML embedding model + custom BERT tokenizer, no cloud dependency for search itself.
 - **Systems design under constraints**: hybrid retrieval, a 3-tier LLM fallback chain, and edge rate-limiting with Durable Objects for strong consistency — see [Design decisions](#design-decisions) for the trade-offs.
 - **Security-conscious backend**: API keys never reach the client; device identity via Apple App Attest; layered, staged-rollout rate limiting. See [Security](#security).
-- **Engineering discipline**: MVVM + repository pattern, 90 unit tests, a labelled [retrieval benchmark](#retrieval-evaluation) that turns "search feels better" into numbers, typed error handling — not just a demo that only survives the happy path.
+- **Engineering discipline**: MVVM + repository pattern, 101 unit tests, a labelled [retrieval benchmark](#retrieval-evaluation) that turns "search feels better" into numbers, typed error handling — not just a demo that only survives the happy path.
 
 ---
 
@@ -59,6 +59,8 @@ DocumentBrain analyses each document and extracts structured fields depending on
 - **Two-tier extraction**: Gemini (via the Cloudflare Worker proxy) is used first for best quality; when there is no network or the proxy is unconfigured, the app falls back to **Apple Foundation Models** on-device (iOS 26+), which fills a type-safe `@Generable` struct directly — no JSON parsing or truncation issues, and works fully offline at no cost.
 - **Contextual UI**: the detail card adapts its layout and labels to the document type (e.g. "Airline" instead of "Vendor" for flights, route row with arrow for origin → destination).
 - **Vision OCR supplement**: PDF pages with fewer than 500 PDFKit characters also receive a Vision OCR pass, capturing visual-only elements like boarding pass card fields that PDFKit misses.
+- **Sanitised output**: models like to fill every field, so values such as "N/A", `0` amounts, malformed dates/times and fields that don't fit the document type (a route on an invoice, flight fields on a CV) are dropped. Documents that aren't one of the supported types get no card at all. The same cleaning runs when stored data is read, so older extractions are fixed without re-analysis.
+- **No retry loops**: a document with nothing to extract is stored with an empty marker, so the launch sweep doesn't re-analyse it (and spend proxy quota) on every launch; only real failures (no network, unparseable answer) are retried.
 - **Robust parsing**: the Gemini path tolerates code-fenced JSON, prose preambles, and truncated responses by scanning for the outermost `{…}` block.
 - Manual re-extraction available via the ↺ button on the metadata card.
 
@@ -452,7 +454,7 @@ python eval/run_retrieval_eval.py --show-misses
 
 ## Tests
 
-90 tests across 15 test classes in `DocumentBrainTests/`:
+101 tests across 16 test classes in `DocumentBrainTests/`:
 
 | Class | Tests | Coverage |
 |---|---|---|
@@ -469,6 +471,7 @@ python eval/run_retrieval_eval.py --show-misses
 | `ContentSearchResultTests` | 5 | Snippet windowing, centering, ellipses, accent preservation |
 | `BarcodeKindTests` | 4 | BCBP / URL / generic barcode classification |
 | `OnDevicePromptBuilderTests` | 10 | On-device prompt budget, relevance-first selection, history truncation |
+| `StructuredDataSanitizingTests` | 11 | Placeholder/zero/malformed values dropped, fields gated by document type, empty marker |
 | `EntityTermsTests` | 4 | Proper-noun / code detection for the entity bonus |
 | `RetrievalEvalTests` | 1 | End-to-end retrieval benchmark with the real CoreML model (see below) |
 
