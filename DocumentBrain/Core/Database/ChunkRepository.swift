@@ -150,6 +150,26 @@ struct ChunkRepository {
             .filter { !stopwords.contains($0.lowercased()) }
     }
 
+    /// Capitalised words that are likely proper nouns (names, companies, places, codes).
+    /// The first word of each sentence is skipped unless it looks like a code
+    /// ("SL2471", "IBI"): in "¿Cuántos días…?" the capital comes from grammar, and
+    /// treating it as an entity boosted unrelated chunks that happen to contain the word.
+    nonisolated static func entityTerms(from query: String) -> Set<String> {
+        var result = Set<String>()
+        for sentence in query.components(separatedBy: CharacterSet(charactersIn: ".?!¿¡\n")) {
+            let words = sentence
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { $0.count > 1 }
+            for (position, word) in words.enumerated() {
+                guard let first = word.first, first.isUppercase else { continue }
+                let looksLikeCode = word.contains(where: \.isNumber) || word == word.uppercased()
+                if position == 0 && !looksLikeCode { continue }
+                result.insert(normalize(word))
+            }
+        }
+        return result
+    }
+
     nonisolated private static func normalize(_ text: String) -> String {
         text.normalizedForSearch
     }
@@ -258,18 +278,8 @@ struct ChunkRepository {
         let meaningfulWords = Self.meaningfulWords(from: queryText)
         let normalizedMeaningful = Set(meaningfulWords.map(Self.normalize))
 
-        // Detect entity terms: words that start with an uppercase letter in the original
-        // query (likely proper nouns: names, companies, places, flight numbers, etc.).
-        // Simpler and more robust than a manual intent-verb exclusion list.
-        let entityTerms = Set(
-            queryText
-                .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                .filter { word in
-                    guard word.count > 1, let first = word.first else { return false }
-                    return first.isUppercase
-                }
-                .map(Self.normalize)
-        )
+        // Detect entity terms (likely proper nouns: names, companies, places, flight numbers).
+        let entityTerms = Self.entityTerms(from: queryText)
 
         // Merge: combine scores for chunks that appear in both
         var scoreMap: [String: (result: SearchResult, vectorScore: Float, ftsHit: Bool)] = [:]

@@ -11,7 +11,7 @@ You import files, the app extracts text, splits it into semantic chunks, generat
 - **ML on-device**: CoreML embedding model + custom BERT tokenizer, no cloud dependency for search itself.
 - **Systems design under constraints**: hybrid retrieval, a 3-tier LLM fallback chain, and edge rate-limiting with Durable Objects for strong consistency — see [Design decisions](#design-decisions) for the trade-offs.
 - **Security-conscious backend**: API keys never reach the client; device identity via Apple App Attest; layered, staged-rollout rate limiting. See [Security](#security).
-- **Engineering discipline**: MVVM + protocol-based DI, 75 unit tests, typed error handling — not just a demo that only survives the happy path.
+- **Engineering discipline**: MVVM + repository pattern, 90 unit tests, a labelled [retrieval benchmark](#retrieval-evaluation) that turns "search feels better" into numbers, typed error handling — not just a demo that only survives the happy path.
 
 ---
 
@@ -69,7 +69,7 @@ DocumentBrain analyses each document and extracts structured fields depending on
   - **Flights**: title `Airline · Origin → Destination · Flight no.`, departure/arrival as start/end times (overnight arrivals roll to the next day), seat in the notes.
   - **Events**: title from the event name, venue as the location.
   - **Other documents**: an all-day event on the document date.
-- Requests **write-only** calendar access on iOS 17+ (full access on iOS 16); if denied, an alert offers a shortcut to Settings.
+- Requests **write-only** calendar access; if denied, an alert offers a shortcut to Settings.
 
 ### Barcode & QR detection
 
@@ -84,7 +84,7 @@ DocumentBrain analyses each document and extracts structured fields depending on
 
 - **Hybrid search**: vector cosine similarity + FTS5 keyword search, merged with chunk-ID deduplication.
 - **Score formula**: `0.65·semantic + 0.20·lexical coverage + keyword bonus + entity bonus`. Semantic similarity is the dominant signal; purely semantic matches below 0.50 with no keyword or proper-noun hit are filtered out.
-- **Entity detection**: proper nouns (words capitalised in the original query — names, companies, places, flight numbers) get a relevance boost without relying on a hand-maintained word list.
+- **Entity detection**: proper nouns (words capitalised in the original query — names, companies, places, flight numbers) get a relevance boost without relying on a hand-maintained word list. The first word of each sentence is ignored unless it looks like a code (`SL2471`, `IBI`), because its capital comes from grammar, not from being a name.
 - Context expansion: retrieved chunks are enriched with their neighboring fragments to provide more context to the LLM.
 - Short query expansion for conversational follow-ups ("and the author?").
 
@@ -161,7 +161,6 @@ cloudflare-worker/                    # Edge proxy (Cloudflare Workers)
 
 - **MVVM**: each feature has a `View` (pure SwiftUI, no business logic) and a `ViewModel` (`@MainActor`, `ObservableObject`).
 - **Controlled singletons**: `EmbeddingService.shared` and `QAService.shared` avoid reloading CoreML models on every operation.
-- **Dependency injection**: `EmbeddingServiceProtocol` allows mocking embeddings in tests without loading the model.
 - **Repository pattern**: each entity has its own repository encapsulating all GRDB queries. Raw SQL interpolation is never done outside repositories.
 
 ---
@@ -178,7 +177,8 @@ Notable trade-offs, and why they were made this way rather than the more obvious
 | **Durable Objects for rate limiting** instead of Workers KV | Quota counters need strong consistency — KV is eventually consistent, so concurrent requests from the same device could race past a limit before a write propagates. DOs serialize access per key, so the counter can't be raced. |
 | **Layered abuse defense shipped incrementally** (per-IP cap → App Attest device identity → global ceiling), gated by a `REQUIRE_ATTESTATION` flag | Per-IP limiting protects the proxy from day one with zero client changes. App Attest is a staged rollout specifically so a client/server version mismatch during deployment can't lock out the live app — untokened requests degrade gracefully until the flag is flipped. |
 | **API key isolation via a Cloudflare Worker proxy** instead of calling Gemini directly from the client | The Gemini key never ships in the app binary. Worst case if the binary is reverse-engineered: an attacker recovers the app's shared secret, which at most grants access to the proxy (billed, rate-limited, revocable) — never the underlying API key. |
-| **MVVM + protocol-based dependency injection** instead of ViewModels owning concrete services | `EmbeddingServiceProtocol` lets ViewModel tests run against a mock instead of loading the real CoreML model, which keeps the 75-test suite fast enough to run on every change instead of being skipped. |
+| **A labelled retrieval benchmark** instead of eyeballing answers | Retrieval changes (chunking, scoring weights, embedding model) are measured on a fixed question set with doc@k / evidence@k / MRR, both in a Python replica (fast model comparison before CoreML conversion) and in an XCTest against the real app code. See [Retrieval evaluation](#retrieval-evaluation). |
+| **Character-budgeted prompts for the on-device model** instead of a fixed top-k | Apple's on-device model has a ~4K-token window shared by instructions, context and answer. Snippets are selected by relevance until a budget is spent, and the provider retries with smaller budgets if the window still overflows, so offline answers degrade gracefully instead of falling straight to the extractive fallback. |
 | **GRDB over CoreData** | Needed direct SQL control for FTS5 virtual tables and a hand-tuned bounded-priority-queue vector search — both awkward to express through CoreData's object graph. |
 
 ---
@@ -313,6 +313,7 @@ All interactive controls have VoiceOver labels and meet Apple HIG's minimum 44×
 | 2 | **Apple Foundation Models** (on-device) | iOS 26+, Apple Intelligence enabled | Offline, full privacy, no cost |
 | 3 | **Extractive answer** (local) | None | Returns the most relevant fragment without an LLM |
 
+- **On-device context budget**: `OnDevicePromptBuilder` keeps the prompt for Apple's model within a character budget (≈2K tokens), picks snippets by relevance score and renders them in reading order, truncates history, and retries with smaller budgets (6.5K → 4K → 2.2K chars) on `exceededContextWindowSize`.
 - The response language follows the active app language (`AppLanguage`): the system prompt is generated in the selected language.
 - Conversational history (last 3 turns) is passed to the LLM for coherent multi-question conversations.
 - When retrieved results span multiple documents, the prompt instructs the LLM to disambiguate rather than blend answers.
@@ -327,10 +328,10 @@ DocumentBrain includes bidirectional sync with CloudKit (user's private database
 
 - Syncs documents, folders, conversations, and messages.
 - Maintains a local pending-changes queue with retry when the app becomes active.
-- `SyncCoordinator` (iOS 17+) orchestrates sync; on iOS 16 the app works fully offline.
+- `SyncCoordinator` orchestrates sync on top of `CKSyncEngine`; without iCloud the app works fully locally.
 - Sync status is visible in Settings (active / syncing / error indicator).
 
-**Requirements**: iOS 17+, active iCloud session, same Apple ID across devices.
+**Requirements**: active iCloud session, same Apple ID across devices.
 
 ---
 
@@ -360,9 +361,9 @@ Supports file attachments, URLs, and shared plain text.
 | Barcode generation | Core Image (PDF417 for boarding passes, QR for generic codes) |
 | Metadata extraction | Gemini Flash (cloud) with Apple Foundation Models `@Generable` on-device fallback (iOS 26+) |
 | Calendar | EventKit / EventKitUI (`EKEventEditViewController`) |
-| Sync | CloudKit / CKSyncEngine (iOS 17+) |
+| Sync | CloudKit / CKSyncEngine |
 | Edge proxy | Cloudflare Workers (JavaScript) |
-| Minimum iOS | iOS 16 |
+| Minimum iOS | iOS 26.1 (on-device LLM features require an Apple Intelligence-capable device) |
 
 ---
 
@@ -370,7 +371,7 @@ Supports file attachments, URLs, and shared plain text.
 
 ### Requirements
 
-- macOS with Xcode 16+.
+- macOS with Xcode 26+.
 - iOS Simulator or physical device.
 - `Config.plist` with environment keys (see below).
 
@@ -416,14 +417,42 @@ xcodebuild -list -project DocumentBrain.xcodeproj
 xcodebuild test \
   -project DocumentBrain.xcodeproj \
   -scheme DocumentBrain \
-  -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.0'
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+```
+
+---
+
+## Retrieval evaluation
+
+A labelled benchmark lives in `DocumentBrainTests/RetrievalEval/retrieval_eval_corpus.json`: 12 synthetic personal documents (invoices, a rental contract, boarding passes, a payslip, an insurance policy, a CV, a manual, an HR handbook in English…) and 45 questions, each tagged with the expected document and an evidence string the retrieved chunk must contain. Questions are split into **lexical** (share key terms with the answer), **semantic** (paraphrases — "¿Puedo tener un perro en casa?" vs. "animales de compañía") and **cross-lingual** (Spanish question, English document or vice versa).
+
+Metrics: **doc@1 / doc@5** (right document first / in the top 5), **evid@5** (a top-5 chunk contains the answer), **MRR**.
+
+Two runners share the corpus:
+
+- `eval/run_retrieval_eval.py` — a Python replica of chunking + hybrid scoring (SQLite FTS5 + cosine) to compare embedding models in minutes, before any CoreML conversion.
+- `RetrievalEvalTests` — runs the real Swift pipeline with the bundled CoreML model against an in-memory database and fails if quality drops below regression floors.
+
+Results from the Python replica (hybrid = what the chat uses):
+
+| Embedding model | Hybrid doc@1 | Hybrid evid@5 | Hybrid MRR | Semantic evid@5 | Cross-lingual evid@5 | Vector-only evid@5 |
+|---|---|---|---|---|---|---|
+| `multi-qa-MiniLM-L6-cos-v1` (current, English-only) | 0.67 | 0.76 | 0.70 | 0.70 | 0.00 | 0.62 |
+| `paraphrase-multilingual-MiniLM-L12-v2` | 0.76 | 0.82 | 0.79 | 0.70 | 0.60 | 0.82 |
+| `multilingual-e5-small` | 0.84 | 0.96 | 0.89 | 1.00 | 0.60 | 1.00 |
+
+Takeaways: the current model only works because FTS5 rescues lexical questions — paraphrases and cross-lingual questions are where it fails, often returning nothing at all because the semantic floor filters every candidate. A multilingual 384-dim model fixes most of that without changing the vector schema. With a strong embedding model, pure vector search already beats the hybrid formula on this set, so the weights should be re-tuned after the switch. The corpus is small (19 chunks): numbers are directional, and the set should grow with real-world failure cases.
+
+```bash
+pip install sentence-transformers
+python eval/run_retrieval_eval.py --show-misses
 ```
 
 ---
 
 ## Tests
 
-75 unit tests across 12 test classes in `DocumentBrainTests/`:
+90 tests across 15 test classes in `DocumentBrainTests/`:
 
 | Class | Tests | Coverage |
 |---|---|---|
@@ -439,8 +468,10 @@ xcodebuild test \
 | `StructuredDocumentDataTests` | 7 | Amount/date formatting, emptiness, travel classification |
 | `ContentSearchResultTests` | 5 | Snippet windowing, centering, ellipses, accent preservation |
 | `BarcodeKindTests` | 4 | BCBP / URL / generic barcode classification |
+| `OnDevicePromptBuilderTests` | 10 | On-device prompt budget, relevance-first selection, history truncation |
+| `EntityTermsTests` | 4 | Proper-noun / code detection for the entity bonus |
+| `RetrievalEvalTests` | 1 | End-to-end retrieval benchmark with the real CoreML model (see below) |
 
-Protocol-based injection of `EmbeddingServiceProtocol` makes ViewModel tests deterministic and fast (no CoreML model loaded in tests).
 
 ---
 
@@ -452,6 +483,7 @@ The full end-to-end flow is implemented and working:
 
 Potential next areas:
 
-- Tune hybrid search weights (vector vs. FTS5) with a labelled test collection to optimize recall/precision on large document sets.
+- Switch to a multilingual embedding model (`multilingual-e5-small`, 384-dim) — needs a SentencePiece tokenizer in Swift — then re-tune the hybrid weights on the benchmark.
+- Grow the benchmark with real-world failure cases and a larger distractor set.
 - Lightweight cross-encoder re-ranking of retrieved chunks before passing them to the LLM.
 - Auto-summary of long documents on import.

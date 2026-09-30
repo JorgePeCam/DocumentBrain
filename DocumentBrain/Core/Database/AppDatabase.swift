@@ -28,6 +28,12 @@ final class AppDatabase {
         }
     }
 
+    /// Empty in-memory database with the full schema (FTS5 included), for tests and
+    /// retrieval evaluation.
+    static func makeInMemory() throws -> AppDatabase {
+        try AppDatabase(dbWriter: DatabaseQueue())
+    }
+
     private var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
 

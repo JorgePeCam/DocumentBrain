@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "description": "Synthetic personal-document corpus for measuring DocumentBrain retrieval quality. All people, companies and numbers are fictional. Questions are tagged: 'lexical' shares key terms with the answer, 'semantic' is a paraphrase with little word overlap, 'crosslingual' asks in one language about a document in the other.",
+  "documents": [
+    {
+      "id": "factura_luz",
+      "title": "Factura electricidad agosto 2026",
+      "text": "ELÉCTRICA DEL NORTE S.A.\nFactura n.º EN-2026-0815-44721\nFecha de emisión: 2 de septiembre de 2026\n\nDatos del titular\nTitular: Lucía Martín Ortega\nDirección de suministro: Calle del Pez 14, 3.º B, 28004 Madrid\nCUPS: ES0021000012345678XY\nPotencia contratada: 4,6 kW\nTarifa de acceso: 2.0TD\n\nPeriodo de facturación: del 1 de agosto al 31 de agosto de 2026 (31 días)\n\nResumen de consumo\nConsumo en punta: 71 kWh\nConsumo en llano: 88 kWh\nConsumo en valle: 133 kWh\nConsumo total: 292 kWh\nConsumo medio diario: 9,42 kWh\n\nDesglose del importe\nTérmino de potencia: 14,21 €\nTérmino de energía: 52,37 €\nImpuesto sobre la electricidad: 3,40 €\nAlquiler del contador: 0,81 €\nIVA (21 %): 14,64 €\nIMPORTE TOTAL: 85,43 €\n\nForma de pago\nEl importe se cargará por domiciliación bancaria el 12 de septiembre de 2026 en la cuenta terminada en 4417.\n\nAtención al cliente: 900 555 123 (gratuito) · Averías 24 h: 900 555 124"
+    },
+    {
+      "id": "factura_internet",
+      "title": "Factura Fibranet septiembre",
+      "text": "FIBRANET TELECOMUNICACIONES\nFactura FN-09-2026-118830\nCliente: Lucía Martín Ortega\n\nServicios contratados\nFibra óptica simétrica 600 Mb: 32,90 €\nLínea móvil con 50 GB y llamadas ilimitadas: 13,00 €\nTotal servicios: 45,90 €\n\nCompromiso de permanencia\nSu contrato incluye permanencia hasta el 31 de marzo de 2027. En caso de baja anticipada se aplicará una penalización proporcional de hasta 120 € por el router y la instalación.\n\nEl router Wi-Fi 6 es propiedad de Fibranet y deberá devolverse en un plazo de 30 días tras la baja.\n\nPara cambiar de tarifa llame al 1450 o entre en el área de clientes."
+    },
+    {
+      "id": "contrato_alquiler",
+      "title": "Contrato de arrendamiento de vivienda",
+      "text": "CONTRATO DE ARRENDAMIENTO DE VIVIENDA\n\nEn Madrid, a 1 de febrero de 2026.\n\nREUNIDOS\nDe una parte, D. Ramón Ibarra Soto, en calidad de ARRENDADOR.\nDe otra parte, D.ª Lucía Martín Ortega, en calidad de ARRENDATARIA.\n\nPRIMERA. Objeto. El arrendador cede en arrendamiento la vivienda situada en la Calle del Pez 14, 3.º B, de Madrid, con una superficie de 68 metros cuadrados, para uso exclusivo como vivienda habitual de la arrendataria.\n\nSEGUNDA. Duración. El contrato tendrá una duración de un año desde la fecha de firma, prorrogable anualmente hasta un máximo de cinco años conforme a la Ley de Arrendamientos Urbanos.\n\nTERCERA. Renta. La renta se fija en novecientos cincuenta euros (950 €) mensuales, que se abonarán dentro de los cinco primeros días de cada mes mediante transferencia bancaria. La renta se actualizará anualmente conforme al índice de referencia vigente.\n\nCUARTA. Fianza. A la firma del contrato la arrendataria entrega la cantidad de 1.900 €, equivalente a dos mensualidades, en concepto de fianza, que será devuelta a la finalización del contrato una vez comprobado el buen estado de la vivienda.\n\nQUINTA. Desistimiento. Transcurridos seis meses, la arrendataria podrá desistir del contrato comunicándolo al arrendador con una antelación mínima de treinta días.\n\nSEXTA. Animales. No se permite la tenencia de animales de compañía en la vivienda sin autorización previa y por escrito del arrendador.\n\nSÉPTIMA. Obras y reparaciones. Las pequeñas reparaciones derivadas del desgaste por el uso ordinario serán a cargo de la arrendataria. Las reparaciones necesarias para conservar la vivienda en condiciones de habitabilidad corresponden al arrendador. La arrendataria no podrá realizar obras sin consentimiento escrito.\n\nOCTAVA. Suministros. Los gastos de electricidad, agua e internet serán por cuenta de la arrendataria. La cuota de la comunidad de propietarios y el IBI serán por cuenta del arrendador."
+    },
+    {
+      "id": "embarque_lisboa",
+      "title": "Tarjeta de embarque MAD-LIS",
+      "text": "AEROLÍNEAS SOL · TARJETA DE EMBARQUE / BOARDING PASS\n\nPasajera: MARTIN ORTEGA / LUCIA MS\nVuelo: SL2471\nFecha: 14 NOV 2026\nOrigen: Madrid-Barajas (MAD) Terminal 4\nDestino: Lisboa Humberto Delgado (LIS) Terminal 1\nSalida: 08:05 · Llegada: 08:20 hora local\n\nAsiento: 17C\nGrupo de embarque: 3\nPuerta: K82\nHora de embarque: 07:35\nLa puerta de embarque cierra 20 minutos antes de la salida.\n\nClase: Turista · Tarifa: Basic\nEquipaje: 1 bolso bajo el asiento. Equipaje de mano en cabina no incluido en esta tarifa.\nLocalizador: QZ7K2P\nNúmero de billete: 139 2104887652"
+    },
+    {
+      "id": "reserva_londres",
+      "title": "Booking confirmation London",
+      "text": "SKYBRIDGE AIRWAYS - BOOKING CONFIRMATION\n\nBooking reference: HT94WR\nPassenger: Ms Lucia Martin Ortega\n\nOutbound: SB318 Madrid (MAD) to London Gatwick (LGW), Friday 4 December 2026, departs 16:40, arrives 18:05.\nReturn: SB319 London Gatwick (LGW) to Madrid (MAD), Monday 7 December 2026, departs 19:10, arrives 22:30.\n\nFare: Plus\nBaggage allowance: one checked bag up to 23 kg and one cabin bag up to 10 kg per passenger per flight.\nSeat selection is included in your fare. Online check-in opens 24 hours before departure.\n\nTotal paid: 214.60 EUR, charged to card ending 4417.\n\nChanges: you may change your flight up to 2 hours before departure by paying the fare difference. Refunds are not available on Plus fares."
+    },
+    {
+      "id": "nomina_septiembre",
+      "title": "Nómina septiembre 2026",
+      "text": "RECIBO DE SALARIOS\nEmpresa: Nubeazul Software S.L. · CIF B87654321\nTrabajadora: Lucía Martín Ortega · Categoría: Ingeniera de software\nPeriodo de liquidación: 01/09/2026 a 30/09/2026 · 30 días\n\nI. DEVENGOS\nSalario base: 2.950,00 €\nComplemento de puesto: 420,00 €\nPlus de teletrabajo: 40,00 €\nTOTAL DEVENGADO: 3.410,00 €\n\nII. DEDUCCIONES\nContingencias comunes (4,70 %): 160,27 €\nDesempleo (1,55 %): 52,86 €\nFormación profesional (0,10 %): 3,41 €\nMecanismo de equidad intergeneracional (0,13 %): 4,43 €\nRetención IRPF (18,00 %): 613,80 €\nTOTAL A DEDUCIR: 834,77 €\n\nLÍQUIDO TOTAL A PERCIBIR: 2.575,23 €\n\nIngreso por transferencia a la cuenta terminada en 4417 el 30 de septiembre de 2026."
+    },
+    {
+      "id": "seguro_coche",
+      "title": "Póliza seguro de automóvil",
+      "text": "SEGUROS ATALAYA · CONDICIONES PARTICULARES\nPóliza n.º AT-AUTO-5520193\nTomadora: Lucía Martín Ortega\nVehículo asegurado: Seat Ibiza 1.0 TSI, matrícula 4821 LKM\nEfecto: 15/03/2026 · Vencimiento: 15/03/2027\nPrima anual: 412,50 € (pago fraccionado trimestral)\n\nCOBERTURAS\nResponsabilidad civil obligatoria y voluntaria hasta 50 millones de euros.\nDaños propios: todo riesgo con franquicia de 300 € por siniestro. En los siniestros por daños propios, los primeros 300 € de la reparación corren a cargo de la tomadora.\nLunas: incluidas sin franquicia.\nRobo e incendio: incluidos.\n\nASISTENCIA EN VIAJE\nAsistencia en carretera desde el kilómetro 0, las 24 horas, incluido el remolque del vehículo al taller más cercano en caso de avería o accidente, también si la avería se produce en el domicilio.\nVehículo de sustitución: hasta 7 días en caso de accidente.\nTeléfono de asistencia 24 h: 900 800 321\n\nConductor habitual: la tomadora. Se permite conductor ocasional mayor de 26 años con más de 2 años de carné."
+    },
+    {
+      "id": "cv_lucia",
+      "title": "CV Lucía Martín",
+      "text": "LUCÍA MARTÍN ORTEGA\nIngeniera de software iOS · Madrid\nlucia.martin@example.com\n\nPERFIL\nIngeniera iOS con seis años de experiencia construyendo aplicaciones nativas en Swift para banca y salud. Especializada en SwiftUI, arquitectura limpia y rendimiento.\n\nEXPERIENCIA\nNubeazul Software (2023 – actualidad) · Senior iOS Engineer. Lidero el equipo móvil de cuatro personas de una app de telemedicina con 800.000 usuarios. Migré la app de UIKit a SwiftUI y reduje el tiempo de arranque un 40 %.\nBanco Meridiano (2020 – 2023) · iOS Developer. Desarrollé el módulo de pagos con Apple Pay y la autenticación biométrica.\n\nFORMACIÓN\nGrado en Ingeniería Informática, Universidad Politécnica de Valencia (2016 – 2020).\n\nIDIOMAS\nEspañol nativo, inglés C1 (Cambridge Advanced), francés B1.\n\nHABILIDADES\nSwift, SwiftUI, Combine, async/await, Core Data, XCTest, CI con GitHub Actions y Fastlane."
+    },
+    {
+      "id": "manual_lavadora",
+      "title": "Manual lavadora LV-8000",
+      "text": "LAVADORA LV-8000 · MANUAL DE USUARIO\n\nGARANTÍA\nEste aparato dispone de una garantía de 3 años desde la fecha de compra. Conserve el tique de compra. La garantía no cubre daños causados por cal ni por un uso indebido.\n\nMANTENIMIENTO\nLimpie el filtro de la bomba de desagüe cada tres meses. El filtro se encuentra detrás de la tapa inferior derecha. Coloque un recipiente plano antes de abrirlo porque saldrá agua.\nEjecute un programa de limpieza de tambor a 90 °C una vez al mes.\n\nCÓDIGOS DE ERROR\nE10: No entra agua. Compruebe que el grifo está abierto y que la manguera de entrada no está doblada.\nE21: La máquina no desagua. Probablemente el filtro de la bomba está obstruido; límpielo siguiendo las instrucciones de mantenimiento. Si persiste, revise que la manguera de desagüe no esté aplastada.\nE40: La puerta no está bien cerrada.\nE60: Fallo del motor. Contacte con el servicio técnico.\n\nSERVICIO TÉCNICO: 902 111 222"
+    },
+    {
+      "id": "entradas_festival",
+      "title": "Entradas Festival Río Sonoro",
+      "text": "FESTIVAL RÍO SONORO 2026\nEntrada general · 2 personas\nComprador: Lucía Martín Ortega · Pedido n.º RS-558812\n\nFecha: sábado 17 de octubre de 2026\nRecinto: Explanada del Río, Zaragoza\nApertura de puertas: 17:00 · Primer concierto: 18:30 · Cierre: 03:00\n\nCondiciones de acceso\nUna vez dentro del recinto no se permite salir y volver a entrar.\nNo se permite la entrada con comida, bebida ni envases de vidrio.\nLos menores de 16 años deberán acceder acompañados de un adulto.\n\nPrecio: 2 × 49,00 € + gastos de gestión 6,00 € = 104,00 €\nPresenta el código QR en el móvil en la entrada."
+    },
+    {
+      "id": "acta_comunidad",
+      "title": "Acta junta comunidad de propietarios",
+      "text": "ACTA DE LA JUNTA GENERAL EXTRAORDINARIA\nComunidad de propietarios Calle del Pez 14 · 22 de junio de 2026\n\nPunto 1. Sustitución del ascensor.\nSe aprueba por mayoría la sustitución del ascensor, con un presupuesto de 43.200 €. Se acuerda una derrama de 1.200 € por vivienda, pagadera en tres plazos de 400 € en septiembre, octubre y noviembre de 2026.\n\nPunto 2. Cuotas ordinarias.\nLa cuota mensual de comunidad pasa de 65 € a 72 € a partir de enero de 2027.\n\nPunto 3. Portería.\nSe acuerda ampliar el horario del portero de 8:00 a 15:00 de lunes a viernes.\n\nPunto 4. Ruegos y preguntas.\nSe recuerda que está prohibido dejar bicicletas en el portal. La próxima junta ordinaria se celebrará en marzo de 2027."
+    },
+    {
+      "id": "handbook_remote",
+      "title": "Employee handbook - remote work",
+      "text": "NUBEAZUL SOFTWARE - EMPLOYEE HANDBOOK\nSection 4: Remote work policy\n\n4.1 Hybrid schedule. Employees may work from home up to three days per week. Tuesdays and Thursdays are office days for all product teams.\n\n4.2 Equipment. Each employee receives a one-time home-office stipend of 500 EUR to buy a desk, chair or monitor. Receipts must be submitted within 60 days.\n\n4.3 Working abroad. Employees may work remotely from another country for up to 20 working days per calendar year, subject to manager approval.\n\nSection 5: Time off\n\n5.1 Vacation. Full-time employees are entitled to 25 working days of paid vacation per year, plus local public holidays. Up to 5 unused days can be carried over to the following year until 31 March.\n\n5.2 Sick leave. Notify your manager before 10:00 on the first day of absence."
+    }
+  ],
+  "questions": [
+    {"q": "¿Cuál es el CUPS de la factura de la luz?", "doc": "factura_luz", "evidence": "ES0021000012345678XY", "type": "lexical"},
+    {"q": "¿Cuánto es el importe total de la factura de electricidad?", "doc": "factura_luz", "evidence": "IMPORTE TOTAL: 85,43", "type": "lexical"},
+    {"q": "¿Cuántos kWh consumí en agosto?", "doc": "factura_luz", "evidence": "Consumo total: 292 kWh", "type": "lexical"},
+    {"q": "¿Qué día me cobran la luz?", "doc": "factura_luz", "evidence": "12 de septiembre", "type": "semantic"},
+    {"q": "¿Cuánto pago al mes por la fibra y el móvil?", "doc": "factura_internet", "evidence": "45,90", "type": "semantic"},
+    {"q": "¿Hasta cuándo tengo permanencia con Fibranet?", "doc": "factura_internet", "evidence": "31 de marzo de 2027", "type": "lexical"},
+    {"q": "¿Qué me pasa si me doy de baja antes de tiempo con la compañía de internet?", "doc": "factura_internet", "evidence": "penalización", "type": "semantic"},
+    {"q": "¿Cuánto es la renta mensual del piso?", "doc": "contrato_alquiler", "evidence": "950", "type": "lexical"},
+    {"q": "¿Puedo tener un perro en casa?", "doc": "contrato_alquiler", "evidence": "animales de compañía", "type": "semantic"},
+    {"q": "¿Con cuánta antelación tengo que avisar si me quiero ir del piso?", "doc": "contrato_alquiler", "evidence": "treinta días", "type": "semantic"},
+    {"q": "¿Cuánto dejé de fianza?", "doc": "contrato_alquiler", "evidence": "1.900", "type": "lexical"},
+    {"q": "¿Quién paga si se rompe la caldera?", "doc": "contrato_alquiler", "evidence": "habitabilidad", "type": "semantic"},
+    {"q": "¿Quién paga el IBI?", "doc": "contrato_alquiler", "evidence": "IBI serán por cuenta del arrendador", "type": "lexical"},
+    {"q": "¿Qué asiento tengo en el vuelo SL2471?", "doc": "embarque_lisboa", "evidence": "17C", "type": "lexical"},
+    {"q": "¿A qué hora tengo que estar en la puerta para subir al avión de Lisboa?", "doc": "embarque_lisboa", "evidence": "07:35", "type": "semantic"},
+    {"q": "¿Puedo llevar maleta de cabina a Lisboa?", "doc": "embarque_lisboa", "evidence": "Equipaje de mano en cabina no incluido", "type": "semantic"},
+    {"q": "¿Cuál es el localizador del vuelo a Lisboa?", "doc": "embarque_lisboa", "evidence": "QZ7K2P", "type": "lexical"},
+    {"q": "¿Cuántas maletas puedo facturar en el viaje a Londres?", "doc": "reserva_londres", "evidence": "one checked bag", "type": "crosslingual"},
+    {"q": "¿Cuándo vuelvo de Londres?", "doc": "reserva_londres", "evidence": "Monday 7 December", "type": "crosslingual"},
+    {"q": "What is the booking reference for the London trip?", "doc": "reserva_londres", "evidence": "HT94WR", "type": "lexical"},
+    {"q": "Can I get a refund on my London flight?", "doc": "reserva_londres", "evidence": "Refunds are not available", "type": "semantic"},
+    {"q": "¿Cuánto cobré neto en septiembre?", "doc": "nomina_septiembre", "evidence": "2.575,23", "type": "semantic"},
+    {"q": "¿Cuánto me quitan de impuestos del sueldo?", "doc": "nomina_septiembre", "evidence": "Retención IRPF", "type": "semantic"},
+    {"q": "¿Cuál es mi salario base?", "doc": "nomina_septiembre", "evidence": "Salario base: 2.950", "type": "lexical"},
+    {"q": "¿Si tengo un golpe con el coche cuánto pago yo de la reparación?", "doc": "seguro_coche", "evidence": "franquicia de 300", "type": "semantic"},
+    {"q": "¿Me remolcan el coche si no arranca en la puerta de casa?", "doc": "seguro_coche", "evidence": "kilómetro 0", "type": "semantic"},
+    {"q": "¿Cuándo vence el seguro del coche?", "doc": "seguro_coche", "evidence": "Vencimiento: 15/03/2027", "type": "lexical"},
+    {"q": "¿Puede conducir mi coche un amigo de 24 años?", "doc": "seguro_coche", "evidence": "mayor de 26", "type": "semantic"},
+    {"q": "¿Qué idiomas habla Lucía?", "doc": "cv_lucia", "evidence": "inglés C1", "type": "lexical"},
+    {"q": "¿Dónde estudió la carrera?", "doc": "cv_lucia", "evidence": "Universidad Politécnica de Valencia", "type": "semantic"},
+    {"q": "¿Cuánto mejoró el arranque de la app de telemedicina?", "doc": "cv_lucia", "evidence": "40 %", "type": "lexical"},
+    {"q": "What languages does Lucía speak?", "doc": "cv_lucia", "evidence": "inglés C1", "type": "crosslingual"},
+    {"q": "La lavadora no saca el agua, ¿qué hago?", "doc": "manual_lavadora", "evidence": "E21", "type": "semantic"},
+    {"q": "¿Cada cuánto hay que limpiar el filtro de la lavadora?", "doc": "manual_lavadora", "evidence": "cada tres meses", "type": "lexical"},
+    {"q": "¿Cuántos años de garantía tiene la lavadora?", "doc": "manual_lavadora", "evidence": "3 años", "type": "lexical"},
+    {"q": "¿Puedo salir del festival y volver a entrar?", "doc": "entradas_festival", "evidence": "no se permite salir y volver a entrar", "type": "lexical"},
+    {"q": "¿A qué hora abren las puertas del festival?", "doc": "entradas_festival", "evidence": "17:00", "type": "lexical"},
+    {"q": "¿Puedo meter bocadillos al concierto?", "doc": "entradas_festival", "evidence": "comida", "type": "semantic"},
+    {"q": "¿Cuánto tengo que pagar por lo del ascensor?", "doc": "acta_comunidad", "evidence": "derrama de 1.200", "type": "lexical"},
+    {"q": "¿Cuánto va a subir la cuota de la comunidad?", "doc": "acta_comunidad", "evidence": "72", "type": "lexical"},
+    {"q": "¿Puedo dejar la bici en la entrada del edificio?", "doc": "acta_comunidad", "evidence": "bicicletas en el portal", "type": "semantic"},
+    {"q": "¿Cuántos días puedo teletrabajar a la semana?", "doc": "handbook_remote", "evidence": "three days per week", "type": "crosslingual"},
+    {"q": "¿Cuántos días de vacaciones tengo al año?", "doc": "handbook_remote", "evidence": "25 working days", "type": "crosslingual"},
+    {"q": "How much money do I get to set up my home office?", "doc": "handbook_remote", "evidence": "500 EUR", "type": "semantic"},
+    {"q": "Can I work from Portugal for a month?", "doc": "handbook_remote", "evidence": "20 working days", "type": "semantic"}
+  ]
+}
