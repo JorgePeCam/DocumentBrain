@@ -573,10 +573,10 @@
 				DEVELOPMENT_TEAM = 72929TBAA4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "DocumentBrain necesita acceso al Calendario para añadir eventos desde tus documentos.";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "DocumentBrain necesita acceso al Calendario para añadir eventos desde tus documentos.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "DocumentBrain usa la cámara para escanear y guardar tus documentos.";
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -621,10 +621,10 @@
 				DEVELOPMENT_TEAM = 72929TBAA4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "DocumentBrain necesita acceso al Calendario para añadir eventos desde tus documentos.";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "DocumentBrain necesita acceso al Calendario para añadir eventos desde tus documentos.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "DocumentBrain usa la cámara para escanear y guardar tus documentos.";
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
