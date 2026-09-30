@@ -179,13 +179,12 @@ final class ChatViewModel: ObservableObject {
             let history = conversationHistory()
             let searchQuery = expandedQuery(query)
 
-            let queryVector = try await embeddingService.generateEmbedding(for: searchQuery)
+            let queryVector = try await embeddingService.generateEmbedding(for: searchQuery, kind: .query)
 
             let results = try await chunkRepo.hybridSearch(
                 queryVector: queryVector,
                 queryText: searchQuery,
-                limit: 12,
-                minScore: 0.2
+                limit: 12
             )
 
             AppLogger.debug("[QA] Query: \"\(query)\" → \(results.count) results")

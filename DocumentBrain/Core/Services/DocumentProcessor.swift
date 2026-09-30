@@ -125,7 +125,7 @@ actor DocumentProcessor {
 
         var chunksWithEmbeddings: [(chunk: DocumentChunk, embedding: [Float])] = []
         for chunk in chunks {
-            let embedding = try await embeddingService.generateEmbedding(for: chunk.content)
+            let embedding = try await embeddingService.generateEmbedding(for: chunk.content, kind: .passage)
             chunksWithEmbeddings.append((chunk, embedding))
         }
 

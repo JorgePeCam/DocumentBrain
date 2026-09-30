@@ -13,7 +13,7 @@ final class SettingsViewModel: ObservableObject {
     var lang: AppLanguage { selectedLanguage }
 
     var embeddingModelStatus: String {
-        EmbeddingService.shared != nil ? "MiniLM (activo)" : "No disponible"
+        EmbeddingService.shared != nil ? "multilingual-e5-small (activo)" : "No disponible"
     }
 
     var isAIAvailable: Bool {

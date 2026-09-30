@@ -6,7 +6,7 @@ import GRDB
 /// `DocumentBrainTests/RetrievalEval/retrieval_eval_corpus.json`.
 ///
 /// Runs the same pipeline the chat uses — ChunkingService → EmbeddingService (CoreML)
-/// → ChunkRepository.hybridSearch(limit: 12, minScore: 0.2) → top-5 seeds — against an
+/// → ChunkRepository.hybridSearch(limit: 12) → top-5 seeds — against an
 /// in-memory database, then prints doc@1 / doc@5 / evid@5 / MRR overall and per question
 /// type. `eval/run_retrieval_eval.py` replicates the pipeline in Python to compare
 /// embedding models before converting them; this test confirms the numbers with the real
@@ -25,12 +25,12 @@ final class RetrievalEvalTests: XCTestCase {
         let questions: [Question]
     }
 
-    /// Regression floors for the hybrid pipeline (all questions). Measured with the Python
-    /// replica on multi-qa-MiniLM-L6-cos-v1: doc@5 0.76, evid@5 0.76. Raise them when the
-    /// model or scoring improves so regressions are caught.
+    /// Regression floors for the hybrid pipeline (all questions). The Python replica with
+    /// multilingual-e5-small (int4/int8 weights) measures doc@5 1.00 / evid@5 1.00; the
+    /// floors leave room for CoreML fp16 noise. (English-only MiniLM, for reference: 0.76.)
     enum Floors {
-        static let hybridDocAt5 = 0.70
-        static let hybridEvidenceAt5 = 0.70
+        static let hybridDocAt5 = 0.93
+        static let hybridEvidenceAt5 = 0.93
     }
 
     struct Tally {
@@ -41,8 +41,8 @@ final class RetrievalEvalTests: XCTestCase {
             n += 1
             let rank = results.firstIndex { $0.documentId == question.doc }.map { $0 + 1 }
             if rank == 1 { docAt1 += 1 }
-            if let rank, rank <= 5 { docAt5 += 1; reciprocalRankSum += 1 / Double(rank) }
-            else if let rank { reciprocalRankSum += 1 / Double(rank) }
+            if let rank, rank <= 5 { docAt5 += 1 }
+            if let rank { reciprocalRankSum += 1 / Double(rank) }
             let evidence = RetrievalEvalTests.fold(question.evidence)
             if results.prefix(5).contains(where: {
                 $0.documentId == question.doc && RetrievalEvalTests.fold($0.chunkContent).contains(evidence)
@@ -52,8 +52,9 @@ final class RetrievalEvalTests: XCTestCase {
         func rate(_ x: Int) -> Double { n == 0 ? 0 : Double(x) / Double(n) }
         var mrr: Double { n == 0 ? 0 : reciprocalRankSum / Double(n) }
         func row(_ label: String) -> String {
-            String(format: "%-20@ %3d  %5.2f  %5.2f  %6.2f  %5.2f",
-                   label as NSString, n, rate(docAt1), rate(docAt5), rate(evidenceAt5), mrr)
+            label.padding(toLength: 20, withPad: " ", startingAt: 0) + String(
+                format: " %3d  %5.2f  %5.2f  %6.2f  %5.2f",
+                n, rate(docAt1), rate(docAt5), rate(evidenceAt5), mrr)
         }
     }
 
@@ -77,7 +78,7 @@ final class RetrievalEvalTests: XCTestCase {
             try await database.dbWriter.write { try document.save($0) }
             var items: [(chunk: DocumentChunk, embedding: [Float])] = []
             for chunk in chunker.chunk(text: doc.text, documentId: doc.id) {
-                items.append((chunk, try await embedder.generateEmbedding(for: chunk.content)))
+                items.append((chunk, try await embedder.generateEmbedding(for: chunk.content, kind: .passage)))
             }
             chunkCount += items.count
             try await repository.saveChunks(items)
@@ -88,9 +89,9 @@ final class RetrievalEvalTests: XCTestCase {
         var vector: [String: Tally] = [:]
         var misses: [String] = []
         for question in corpus.questions {
-            let queryVector = try await embedder.generateEmbedding(for: question.q)
+            let queryVector = try await embedder.generateEmbedding(for: question.q, kind: .query)
             let hybridResults = try await repository.hybridSearch(
-                queryVector: queryVector, queryText: question.q, limit: 12, minScore: 0.2)
+                queryVector: queryVector, queryText: question.q, limit: 12)
             let vectorResults = try await repository.searchByVector(
                 queryVector: queryVector, limit: 12, minScore: -1)
 

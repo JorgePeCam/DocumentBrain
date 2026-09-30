@@ -7,7 +7,7 @@ evaluated *before* converting them to CoreML:
 
   ChunkingService (paragraph-aware, 800 chars, paragraph overlap)
   → embeddings (sentence-transformers, L2-normalised, mean pooling)
-  → ChunkRepository.hybridSearch (cosine + SQLite FTS5, same scoring formula)
+  → ChunkRepository.hybridSearch (cosine + SQLite FTS5 candidates, semantic-first ranking)
   → top-5 seeds, as ChatViewModel uses them
 
 Metrics per model, overall and per question type (lexical / semantic / crosslingual):
@@ -40,9 +40,8 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_CORPUS = HERE.parent / "DocumentBrainTests" / "RetrievalEval" / "retrieval_eval_corpus.json"
 
 DEFAULT_MODELS = [
-    "sentence-transformers/multi-qa-MiniLM-L6-cos-v1",            # current app model (English-only)
-    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # 384-d multilingual drop-in
-    "intfloat/multilingual-e5-small",                             # 384-d multilingual, query:/passage: prefixes
+    "intfloat/multilingual-e5-small",                             # current app model (query:/passage: prefixes)
+    "sentence-transformers/multi-qa-MiniLM-L6-cos-v1",            # previous app model (English-only), for reference
 ]
 
 # Models that expect instruction prefixes.
@@ -200,8 +199,18 @@ def token_set(text):
     return {w for w in words(fold(text)) if len(w) > 1}
 
 
+# Model-specific relevance floor (EmbeddingService.semanticFloor) and entity bonus
+# (ChunkRepository.entityBonus). Re-measure the floor for any new model.
+SEMANTIC_FLOOR = {
+    "intfloat/multilingual-e5-small": 0.75,
+    "sentence-transformers/multi-qa-MiniLM-L6-cos-v1": 0.50,
+}
+ENTITY_BONUS = 0.03
+
+
 class Index:
-    def __init__(self, corpus, model, prefixes):
+    def __init__(self, corpus, model, prefixes, name=""):
+        self.name = name
         self.model = model
         self.q_prefix, self.p_prefix = prefixes
         self.chunks = []  # dicts: id, doc, title, idx, content
@@ -239,38 +248,23 @@ class Index:
             rows = run(" OR ")
         return rows
 
-    def hybrid_search(self, q, qv, limit=12, min_score=0.2):
-        vec = self.vector_search(qv, limit * 3, 0.15)
+    def hybrid_search(self, q, qv, limit=12):
+        """Mirror of ChunkRepository.hybridSearch (semantic-first)."""
+        floor = SEMANTIC_FLOOR.get(self.name, 0.50)
+        vec = self.vector_search(qv, limit * 3, -1.0)
         fts = self.fts_search(q, limit * 3)
         meaningful = {fold(w) for w in meaningful_words(q)}
         entities = entity_terms(q)
-
-        entries = {cid: [s, False] for cid, s in vec}
-        for cid in fts:
-            if cid in entries:
-                entries[cid][1] = True
-            else:
-                entries[cid] = [0.0, True]
-
         merged = []
-        for cid, (sem, fts_hit) in entries.items():
+        for cid in {c for c, _ in vec} | set(fts):
+            sem = float(self.vectors[cid] @ qv)   # real cosine, also for FTS-only hits
             c = self.chunks[cid]
             toks = token_set(c["content"]) | token_set(c["title"])
-            lex = meaningful & toks
-            coverage = len(lex) / len(meaningful) if meaningful else 0.0
-            entity_hit = bool(entities) and not entities.isdisjoint(toks)
-            if meaningful and not lex and not entity_hit and sem < 0.50:
+            has_kw = bool(meaningful & toks)
+            has_ent = bool(entities) and not entities.isdisjoint(toks)
+            if sem < floor and not has_kw and not has_ent:
                 continue
-            if fts_hit and lex:
-                kb = 0.05 + coverage * 0.10
-            elif lex:
-                kb = coverage * 0.05
-            else:
-                kb = 0.0
-            eb = 0.10 if entity_hit else 0.0
-            final = 0.65 * sem + 0.20 * coverage + kb + eb
-            if final >= min_score:
-                merged.append((cid, final))
+            merged.append((cid, sem + (ENTITY_BONUS if has_ent else 0.0)))
         merged.sort(key=lambda x: -x[1])
         return merged[:limit]
 
@@ -326,7 +320,7 @@ def main():
     for name in args.models:
         model = SentenceTransformer(name, device="cpu")
         model.max_seq_length = min(model.max_seq_length or 512, 512)
-        index = Index(corpus, model, PREFIXES.get(name, ("", "")))
+        index = Index(corpus, model, PREFIXES.get(name, ("", "")), name)
         results, misses = evaluate(index, corpus)
         all_results[name] = results
 

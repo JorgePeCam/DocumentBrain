@@ -128,8 +128,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
     var embeddingsUnavailable: String {
         switch self {
-        case .spanish: return "El modelo de embeddings no está disponible. Asegúrate de que MiniLM está incluido en el proyecto."
-        case .english: return "The embedding model is not available. Make sure MiniLM is included in the project."
+        case .spanish: return "El modelo de embeddings no está disponible. Asegúrate de que E5Small.mlpackage y e5_vocab.tsv están incluidos en el proyecto (ver convert_model.py)."
+        case .english: return "The embedding model is not available. Make sure E5Small.mlpackage and e5_vocab.tsv are included in the project (see convert_model.py)."
         }
     }
 
