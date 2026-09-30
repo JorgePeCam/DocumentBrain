@@ -4,7 +4,10 @@ import CoreML
 final class EmbeddingService {
     /// Bump this string when the model file is replaced. Any mismatch with the
     /// stored UserDefaults value triggers a full re-index on next launch.
-    static let modelVersion = "multi-qa-MiniLM-L6-cos-v1"
+    /// "-tok2": the bundled vocab.txt was replaced with the model's own 30,522-entry
+    /// vocabulary and the tokenizer now strips accents like BERT uncased. Every stored
+    /// embedding was computed with wrong token IDs, so this forces a re-index.
+    static let modelVersion = "multi-qa-MiniLM-L6-cos-v1-tok2"
     static let embeddingDimension = 384
 
     nonisolated(unsafe) static let shared: EmbeddingService? = {

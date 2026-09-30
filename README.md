@@ -11,7 +11,7 @@ You import files, the app extracts text, splits it into semantic chunks, generat
 - **ML on-device**: CoreML embedding model + custom BERT tokenizer, no cloud dependency for search itself.
 - **Systems design under constraints**: hybrid retrieval, a 3-tier LLM fallback chain, and edge rate-limiting with Durable Objects for strong consistency — see [Design decisions](#design-decisions) for the trade-offs.
 - **Security-conscious backend**: API keys never reach the client; device identity via Apple App Attest; layered, staged-rollout rate limiting. See [Security](#security).
-- **Engineering discipline**: MVVM + repository pattern, 101 unit tests, a labelled [retrieval benchmark](#retrieval-evaluation) that turns "search feels better" into numbers, typed error handling — not just a demo that only survives the happy path.
+- **Engineering discipline**: MVVM + repository pattern, 109 unit tests, a labelled [retrieval benchmark](#retrieval-evaluation) that turns "search feels better" into numbers, typed error handling — not just a demo that only survives the happy path.
 
 ---
 
@@ -241,6 +241,7 @@ This approach outperforms fixed-size chunking because each fragment tends to con
 - 6-layer transformer, efficient on Apple Neural Engine.
 - Cosine-normalized: all vectors are stored with unit norm so dot product equals cosine similarity, making search faster.
 - When a model version change is detected at startup, the app triggers a full automatic reindex with progress overlay.
+- **Tokenizer parity is tested**: `BERTTokenizer` reproduces Hugging Face's uncased `BertTokenizer` (lower-casing, accent stripping, BERT's punctuation rule, WordPiece) with the model's own 30,522-token vocabulary, and golden token IDs guard against drift. The retrieval benchmark caught an earlier mismatch (a 119K-entry multilingual vocab bundled by mistake) that had silently degraded semantic search.
 
 ---
 
@@ -454,7 +455,7 @@ python eval/run_retrieval_eval.py --show-misses
 
 ## Tests
 
-101 tests across 16 test classes in `DocumentBrainTests/`:
+109 tests across 17 test classes in `DocumentBrainTests/`:
 
 | Class | Tests | Coverage |
 |---|---|---|
@@ -472,6 +473,7 @@ python eval/run_retrieval_eval.py --show-misses
 | `BarcodeKindTests` | 4 | BCBP / URL / generic barcode classification |
 | `OnDevicePromptBuilderTests` | 10 | On-device prompt budget, relevance-first selection, history truncation |
 | `StructuredDataSanitizingTests` | 11 | Placeholder/zero/malformed values dropped, fields gated by document type, empty marker |
+| `BERTTokenizerTests` | 8 | Token IDs match the Hugging Face tokenizer (golden IDs), vocab size, accent stripping, truncation |
 | `EntityTermsTests` | 4 | Proper-noun / code detection for the entity bonus |
 | `RetrievalEvalTests` | 1 | End-to-end retrieval benchmark with the real CoreML model (see below) |
 

@@ -8,7 +8,8 @@ final class BERTTokenizer {
     private let separatorToken = "[SEP]"
     private let padToken = "[PAD]"
     private let maxSequenceLength = 512
-    private let maxWordLength = 200
+    /// Same as Hugging Face's `max_input_chars_per_word`.
+    private let maxWordLength = 100
 
     init(vocabURL: URL) throws {
         let content = try String(contentsOf: vocabURL, encoding: .utf8)
@@ -24,27 +25,33 @@ final class BERTTokenizer {
         self.vocabulary = vocab
     }
 
+    /// Word-piece IDs for `text`, without [CLS]/[SEP]. Matches the Hugging Face
+    /// `BertTokenizer` (uncased) used to train the embedding model.
+    func tokenIDs(for text: String) -> [Int] {
+        let unknownID = vocabulary[unknownToken] ?? 100
+        return tokenize(text).map { vocabulary[$0] ?? unknownID }
+    }
+
     func tokenizeToMLArrays(text: String) throws -> (inputIDs: MLMultiArray, attentionMask: MLMultiArray) {
-        let tokens = tokenize(text)
-        let ids = tokens.compactMap { vocabulary[$0] ?? vocabulary[unknownToken] }
+        var finalIDs = [vocabulary[startToken]!] + tokenIDs(for: text)
+        // Truncate like Hugging Face: keep room for the closing [SEP].
+        if finalIDs.count > maxSequenceLength - 1 {
+            finalIDs = Array(finalIDs.prefix(maxSequenceLength - 1))
+        }
+        finalIDs.append(vocabulary[separatorToken]!)
 
         let shape = [1, NSNumber(value: maxSequenceLength)]
         let inputIDsArray = try MLMultiArray(shape: shape, dataType: .int32)
         let maskArray = try MLMultiArray(shape: shape, dataType: .int32)
 
+        // Contiguous [1, 512] Int32 buffers: write directly instead of boxing
+        // every element through NSNumber subscripts.
+        let ids = inputIDsArray.dataPointer.bindMemory(to: Int32.self, capacity: maxSequenceLength)
+        let mask = maskArray.dataPointer.bindMemory(to: Int32.self, capacity: maxSequenceLength)
         for i in 0..<maxSequenceLength {
-            let index = [0, NSNumber(value: i)] as [NSNumber]
-            inputIDsArray[index] = 0
-            maskArray[index] = 0
-        }
-
-        let finalIDs = [vocabulary[startToken]!] + ids + [vocabulary[separatorToken]!]
-        let actualLength = min(finalIDs.count, maxSequenceLength)
-
-        for i in 0..<actualLength {
-            let index = [0, NSNumber(value: i)] as [NSNumber]
-            inputIDsArray[index] = NSNumber(value: finalIDs[i])
-            maskArray[index] = 1
+            let isToken = i < finalIDs.count
+            ids[i] = isToken ? Int32(finalIDs[i]) : 0
+            mask[i] = isToken ? 1 : 0
         }
 
         return (inputIDsArray, maskArray)
@@ -53,8 +60,9 @@ final class BERTTokenizer {
     // MARK: - Real WordPiece Tokenization
 
     private func tokenize(_ text: String) -> [String] {
-        // 1. Normalize: lowercase, remove accents
-        let normalized = text.lowercased()
+        // 1. Normalize like BERT uncased: lowercase, then NFD and drop combining marks
+        //    ("está" → "esta", "niño" → "nino"). The vocabulary has no accented pieces.
+        let normalized = Self.stripAccents(text.lowercased())
 
         // 2. Split into words (by whitespace and punctuation)
         let words = splitIntoWords(normalized)
@@ -80,7 +88,7 @@ final class BERTTokenizer {
                     words.append(currentWord)
                     currentWord = ""
                 }
-            } else if char.isPunctuation || char.isSymbol {
+            } else if Self.isBERTPunctuation(char) {
                 if !currentWord.isEmpty {
                     words.append(currentWord)
                     currentWord = ""
@@ -96,6 +104,25 @@ final class BERTTokenizer {
         }
 
         return words
+    }
+
+    /// NFD-decompose and remove non-spacing marks, as BERT's `_run_strip_accents`.
+    static func stripAccents(_ text: String) -> String {
+        var scalars = String.UnicodeScalarView()
+        for scalar in text.decomposedStringWithCanonicalMapping.unicodeScalars
+        where scalar.properties.generalCategory != .nonspacingMark {
+            scalars.append(scalar)
+        }
+        return String(scalars)
+    }
+
+    /// BERT splits on every ASCII non-alphanumeric symbol and on Unicode punctuation
+    /// (P* categories) — but not on non-ASCII symbols like "°" or "€".
+    static func isBERTPunctuation(_ char: Character) -> Bool {
+        if char.isASCII {
+            return (char.isPunctuation || char.isSymbol)
+        }
+        return char.isPunctuation
     }
 
     /// WordPiece tokenization: breaks a word into known subword units.
